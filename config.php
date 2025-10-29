@@ -1,6 +1,5 @@
 <?php
 class Database {
-    // Usar variables de entorno de Railway (prioritarias) o valores locales como fallback
     private $host;
     private $db_name;
     private $username;
@@ -11,7 +10,7 @@ class Database {
     public function __construct() {
         // Railway proporciona estas variables automáticamente cuando vinculas MySQL
         $this->host = getenv('MYSQLHOST') ?: 'localhost';
-        $this->db_name = getenv('MYSQLDATABASE') ?: 'inventario_superzito';
+        $this->db_name = getenv('MYSQL_DATABASE') ?: 'inventario_superzito';  // CAMBIO AQUÍ
         $this->username = getenv('MYSQLUSER') ?: 'root';
         $this->password = getenv('MYSQLPASSWORD') ?: '';
         $this->port = getenv('MYSQLPORT') ?: '3306';
@@ -34,7 +33,6 @@ class Database {
             
         } catch(PDOException $exception) {
             echo "Error de conexión: " . $exception->getMessage();
-            // En producción, mejor loguear el error sin mostrarlo
             error_log("Database connection error: " . $exception->getMessage());
         }
         return $this->conn;
