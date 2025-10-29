@@ -37,21 +37,37 @@ $stmt = $pdo->prepare("
 $stmt->execute([$usuario_id, $caja_actual['fecha_apertura']]);
 $ventas = $stmt->fetch(PDO::FETCH_ASSOC);
 
-// Calcular retiros del turno actual
+// Calcular retiros normales (que NO son pagos a proveedores)
 $stmt = $pdo->prepare("
     SELECT 
         COUNT(*) as total_retiros,
         COALESCE(SUM(monto), 0) as total_dinero_retiros
     FROM Retiros 
     WHERE id_caja = ?
+    AND concepto NOT LIKE 'Pago a proveedor:%'
 ");
 $stmt->execute([$caja_actual['id_caja']]);
-$retiros = $stmt->fetch(PDO::FETCH_ASSOC);
+$retiros_normales = $stmt->fetch(PDO::FETCH_ASSOC);
 
+// Calcular pagos a proveedores
+$stmt = $pdo->prepare("
+    SELECT 
+        COUNT(*) as total_pagos,
+        COALESCE(SUM(monto), 0) as total_dinero_pagos
+    FROM Retiros 
+    WHERE id_caja = ?
+    AND concepto LIKE 'Pago a proveedor:%'
+");
+$stmt->execute([$caja_actual['id_caja']]);
+$pagos_proveedores = $stmt->fetch(PDO::FETCH_ASSOC);
+
+// Calcular totales
 $monto_inicial = floatval($caja_actual['monto_inicial']);
 $monto_ventas = floatval($ventas['total_dinero']);
-$monto_retiros = floatval($retiros['total_dinero_retiros']);
-$monto_esperado = $monto_inicial + $monto_ventas - $monto_retiros;
+$monto_retiros_normales = floatval($retiros_normales['total_dinero_retiros']);
+$monto_pagos_proveedores = floatval($pagos_proveedores['total_dinero_pagos']);
+$monto_retiros_total = $monto_retiros_normales + $monto_pagos_proveedores;
+$monto_esperado = $monto_inicial + $monto_ventas - $monto_retiros_total;
 
 // Procesar cierre
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cerrar_caja'])) {
@@ -201,6 +217,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cerrar_caja'])) {
         }
         .linea-calculo.negativo .valor {
             color: #dc3545;
+        }
+        .linea-calculo.subtotal {
+            background: #f8f9ff;
+            font-weight: bold;
+            border-radius: 8px;
+            margin-top: 5px;
         }
         .monto-esperado {
             background: #d4edda;
@@ -379,9 +401,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cerrar_caja'])) {
                     </div>
                 </div>
                 <div class="info-item">
-                    <div class="info-label">💸 Total Retiros</div>
-                    <div class="info-value" style="color: #dc3545;">
-                        <?php echo $retiros['total_retiros']; ?>
+                    <div class="info-label">💸 Retiros Normales</div>
+                    <div class="info-value" style="color: #dc3545; font-size: 20px;">
+                        <?php echo $retiros_normales['total_retiros']; ?> ($<?php echo number_format($monto_retiros_normales, 2); ?>)
+                    </div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">💳 Pagos Proveedores</div>
+                    <div class="info-value" style="color: #ff9800; font-size: 20px;">
+                        <?php echo $pagos_proveedores['total_pagos']; ?> ($<?php echo number_format($monto_pagos_proveedores, 2); ?>)
                     </div>
                 </div>
             </div>
@@ -401,10 +429,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cerrar_caja'])) {
                 <strong class="valor">+ $<?php echo number_format($monto_ventas, 2); ?></strong>
             </div>
             
-            <?php if ($monto_retiros > 0): ?>
+            <?php if ($monto_retiros_normales > 0): ?>
             <div class="linea-calculo negativo">
-                <span>➖ Retiros de Efectivo:</span>
-                <strong class="valor">- $<?php echo number_format($monto_retiros, 2); ?></strong>
+                <span>➖ Retiros de Efectivo (<?php echo $retiros_normales['total_retiros']; ?>):</span>
+                <strong class="valor">- $<?php echo number_format($monto_retiros_normales, 2); ?></strong>
+            </div>
+            <?php endif; ?>
+            
+            <?php if ($monto_pagos_proveedores > 0): ?>
+            <div class="linea-calculo negativo">
+                <span>➖ Pagos a Proveedores (<?php echo $pagos_proveedores['total_pagos']; ?>):</span>
+                <strong class="valor">- $<?php echo number_format($monto_pagos_proveedores, 2); ?></strong>
+            </div>
+            <?php endif; ?>
+            
+            <?php if ($monto_retiros_total > 0): ?>
+            <div class="linea-calculo subtotal">
+                <span>📊 TOTAL SALIDAS DE EFECTIVO:</span>
+                <strong class="valor" style="color: #dc3545;">- $<?php echo number_format($monto_retiros_total, 2); ?></strong>
             </div>
             <?php endif; ?>
         </div>
@@ -414,7 +456,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cerrar_caja'])) {
             <div class="label">💎 DINERO QUE DEBE HABER EN CAJA:</div>
             <div class="valor">$<?php echo number_format($monto_esperado, 2); ?></div>
             <div style="font-size: 14px; color: #155724; margin-top: 10px;">
-                (Inicial + Ventas - Retiros)
+                (Inicial + Ventas - Retiros - Pagos Proveedores)
             </div>
         </div>
 
@@ -497,9 +539,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cerrar_caja'])) {
             const montoFinal = parseFloat(inputMonto.value) || 0;
             const diferencia = montoFinal - montoEsperado;
             
-            let mensaje = '🔒 ¿Confirmas el cierre de caja?\\n\\n';
-            mensaje += `Monto esperado: $${montoEsperado.toFixed(2)}\\n`;
-            mensaje += `Monto contado: $${montoFinal.toFixed(2)}\\n`;
+            let mensaje = '🔒 ¿Confirmas el cierre de caja?\n\n';
+            mensaje += `Monto esperado: $${montoEsperado.toFixed(2)}\n`;
+            mensaje += `Monto contado: $${montoFinal.toFixed(2)}\n`;
             
             if (Math.abs(diferencia) < 0.01) {
                 mensaje += '✅ El dinero cuadra perfectamente';
