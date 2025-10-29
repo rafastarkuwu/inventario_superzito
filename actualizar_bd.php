@@ -1,20 +1,21 @@
 <?php
 require_once 'config.php';
-$database = new Database();
-$db = $database->getConnection();
+
 echo "<style>
 body { font-family: Arial; padding: 20px; background: #f5f5f5; }
 .success { color: green; padding: 10px; background: #d4edda; border-left: 4px solid #28a745; margin: 10px 0; }
 .error { color: red; padding: 10px; background: #f8d7da; border-left: 4px solid #dc3545; margin: 10px 0; }
 h1 { color: #667eea; }
 </style>";
+
 echo "<h1>🔄 Actualizando estructura de base de datos...</h1>";
+
 try {
     // Eliminar tabla Ventas antigua
-    $db->exec("DROP TABLE IF EXISTS Venta_Detalle");
+    $pdo->exec("DROP TABLE IF EXISTS Venta_Detalle");
     echo "<div class='success'>✅ Tabla Venta_Detalle eliminada</div>";
     
-    $db->exec("DROP TABLE IF EXISTS Ventas");
+    $pdo->exec("DROP TABLE IF EXISTS Ventas");
     echo "<div class='success'>✅ Tabla Ventas eliminada</div>";
     
     // Crear nueva tabla Ventas (cabecera)
@@ -26,7 +27,7 @@ try {
         estado VARCHAR(20) DEFAULT 'completada',
         FOREIGN KEY (id_encargado) REFERENCES Encargado(id_encargado)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
-    $db->exec($query);
+    $pdo->exec($query);
     echo "<div class='success'>✅ Tabla Ventas creada</div>";
     
     // Crear tabla Venta_Detalle (productos vendidos)
@@ -40,7 +41,7 @@ try {
         FOREIGN KEY (id_venta) REFERENCES Ventas(id_venta) ON DELETE CASCADE,
         FOREIGN KEY (id_producto) REFERENCES Productos(id_producto)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
-    $db->exec($query);
+    $pdo->exec($query);
     echo "<div class='success'>✅ Tabla Venta_Detalle creada</div>";
     
     // Crear tabla Cierre_Caja
@@ -55,7 +56,7 @@ try {
         estado VARCHAR(20) DEFAULT 'abierta',
         FOREIGN KEY (id_encargado) REFERENCES Encargado(id_encargado)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
-    $db->exec($query);
+    $pdo->exec($query);
     echo "<div class='success'>✅ Tabla Cierre_Caja creada</div>";
     
     echo "<hr>";
@@ -67,3 +68,5 @@ try {
     echo "<div class='error'>❌ Error: " . $e->getMessage() . "</div>";
 }
 ?>
+```
+https://inventariosuperzito-production.up.railway.app/actualizar_bd.php
