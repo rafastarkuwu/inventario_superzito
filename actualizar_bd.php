@@ -1,22 +1,18 @@
 <?php
 require_once 'config.php';
-
 $database = new Database();
 $db = $database->getConnection();
-
 echo "<style>
 body { font-family: Arial; padding: 20px; background: #f5f5f5; }
 .success { color: green; padding: 10px; background: #d4edda; border-left: 4px solid #28a745; margin: 10px 0; }
 .error { color: red; padding: 10px; background: #f8d7da; border-left: 4px solid #dc3545; margin: 10px 0; }
 h1 { color: #667eea; }
 </style>";
-
 echo "<h1>🔄 Actualizando estructura de base de datos...</h1>";
-
 try {
     // Eliminar tabla Ventas antigua
-    $db->exec("DROP TABLE IF EXISTS Detalle_Venta");
-    echo "<div class='success'>✅ Tabla Detalle_Venta eliminada</div>";
+    $db->exec("DROP TABLE IF EXISTS Venta_Detalle");
+    echo "<div class='success'>✅ Tabla Venta_Detalle eliminada</div>";
     
     $db->exec("DROP TABLE IF EXISTS Ventas");
     echo "<div class='success'>✅ Tabla Ventas eliminada</div>";
@@ -33,8 +29,8 @@ try {
     $db->exec($query);
     echo "<div class='success'>✅ Tabla Ventas creada</div>";
     
-    // Crear tabla Detalle_Venta (productos vendidos)
-    $query = "CREATE TABLE Detalle_Venta (
+    // Crear tabla Venta_Detalle (productos vendidos)
+    $query = "CREATE TABLE Venta_Detalle (
         id_detalle INT AUTO_INCREMENT PRIMARY KEY,
         id_venta INT NOT NULL,
         id_producto INT NOT NULL,
@@ -45,7 +41,7 @@ try {
         FOREIGN KEY (id_producto) REFERENCES Productos(id_producto)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
     $db->exec($query);
-    echo "<div class='success'>✅ Tabla Detalle_Venta creada</div>";
+    echo "<div class='success'>✅ Tabla Venta_Detalle creada</div>";
     
     // Crear tabla Cierre_Caja
     $query = "CREATE TABLE Cierre_Caja (
