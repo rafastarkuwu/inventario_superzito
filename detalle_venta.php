@@ -15,11 +15,11 @@ if ($venta_id <= 0) {
 }
 
 try {
-    // Obtener información de la venta - CORREGIDO: usar tabla 'ventas'
+    // Primero intentar obtener la venta con el esquema que usa cierre_caja.php
     $stmt = $pdo->prepare("
-        SELECT id as id_venta, fecha_venta, total, usuario_nombre as vendedor
-        FROM ventas
-        WHERE id = ?
+        SELECT v.id as id_venta, v.fecha_venta, v.total, v.usuario_nombre as vendedor
+        FROM Ventas v
+        WHERE v.id_venta = ?
     ");
     $stmt->execute([$venta_id]);
     $venta = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -29,14 +29,15 @@ try {
         exit();
     }
     
-    // Obtener detalle de productos - CORREGIDO: usar tabla 'venta_detalle'
+    // Obtener detalle de productos usando el esquema correcto
     $stmt = $pdo->prepare("
-        SELECT vd.cantidad, vd.precio_unitario, vd.subtotal,
+        SELECT dv.cantidad, dv.precio_unitario, 
+               (dv.cantidad * dv.precio_unitario) as subtotal,
                p.nombre_producto, p.codigo_barras
-        FROM venta_detalle vd
-        LEFT JOIN Productos p ON vd.producto_id = p.id_producto
-        WHERE vd.venta_id = ?
-        ORDER BY vd.id
+        FROM Detalle_Venta dv
+        LEFT JOIN Productos p ON dv.id_producto = p.id_producto
+        WHERE dv.id_venta = ?
+        ORDER BY dv.id_detalle_venta
     ");
     $stmt->execute([$venta_id]);
     $productos = $stmt->fetchAll(PDO::FETCH_ASSOC);
