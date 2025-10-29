@@ -34,11 +34,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Verificar contraseña
             if ($user && $user['password'] === $password) {
                 // Obtener nombre de la tabla Persona
-                $stmt = $pdo->prepare("SELECT nombre, apellidoP FROM Persona WHERE id_persona = :id");
+                $stmt = $pdo->prepare("SELECT nombre, apellido FROM Persona WHERE id_persona = :id");
                 $stmt->execute([':id' => $user['id_persona']]);
                 $persona = $stmt->fetch(PDO::FETCH_ASSOC);
                 
-                $nombre_completo = $persona['nombre'] . ' ' . $persona['apellidoP'];
+                $nombre_completo = $persona['nombre'] . ' ' . $persona['apellido'];
                 
                 $_SESSION['usuario_id'] = $user['id'];
                 $_SESSION['usuario_nombre'] = $nombre_completo;
