@@ -2,43 +2,47 @@
 session_start();
 require_once 'config.php';
 
-// Verificar si el usuario está autenticado
 if (!isset($_SESSION['usuario_id'])) {
     header("Location: login.php");
     exit();
 }
 
 $usuario_nombre = $_SESSION['usuario_nombre'];
-$es_encargado = ($_SESSION['rol'] === 'encargado');
+$rol = $_SESSION['rol'];
 
 // Obtener estadísticas
 try {
-    // Total de productos
-    $stmt = $pdo->query("SELECT COUNT(*) as total FROM productos");
-    $total_productos = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
+    // Total productos
+    $stmt = $pdo->query("SELECT COUNT(*) FROM Productos");
+    $total_productos = $stmt->fetchColumn();
     
     // Productos con stock bajo
-    $stmt = $pdo->query("SELECT COUNT(*) as total FROM productos WHERE stock <= stock_minimo");
-    $productos_bajo_stock = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
+    $stmt = $pdo->query("SELECT COUNT(*) FROM Inventario WHERE stock_actual <= stock_minimo");
+    $productos_stock_bajo = $stmt->fetchColumn();
     
-    // Ventas del día
-    $stmt = $pdo->query("SELECT COUNT(*) as total, COALESCE(SUM(total), 0) as monto 
-                        FROM ventas 
-                        WHERE DATE(fecha_venta) = CURDATE()");
-    $ventas_hoy = $stmt->fetch(PDO::FETCH_ASSOC);
+    // Ventas de hoy
+    $stmt = $pdo->query("SELECT COALESCE(SUM(total), 0) FROM Ventas WHERE DATE(fecha_venta) = CURDATE()");
+    $ventas_hoy = $stmt->fetchColumn();
+    
+    // Contar tickets de hoy
+    $stmt = $pdo->query("SELECT COUNT(*) FROM Ventas WHERE DATE(fecha_venta) = CURDATE()");
+    $tickets_hoy = $stmt->fetchColumn();
     
     // Ventas del mes
-    $stmt = $pdo->query("SELECT COUNT(*) as total, COALESCE(SUM(total), 0) as monto 
-                        FROM ventas 
-                        WHERE MONTH(fecha_venta) = MONTH(CURDATE()) 
-                        AND YEAR(fecha_venta) = YEAR(CURDATE())");
-    $ventas_mes = $stmt->fetch(PDO::FETCH_ASSOC);
+    $stmt = $pdo->query("SELECT COALESCE(SUM(total), 0) FROM Ventas WHERE YEAR(fecha_venta) = YEAR(CURDATE()) AND MONTH(fecha_venta) = MONTH(CURDATE())");
+    $ventas_mes = $stmt->fetchColumn();
     
-} catch(Exception $e) {
+    // Contar tickets del mes
+    $stmt = $pdo->query("SELECT COUNT(*) FROM Ventas WHERE YEAR(fecha_venta) = YEAR(CURDATE()) AND MONTH(fecha_venta) = MONTH(CURDATE())");
+    $tickets_mes = $stmt->fetchColumn();
+    
+} catch (Exception $e) {
     $total_productos = 0;
-    $productos_bajo_stock = 0;
-    $ventas_hoy = ['total' => 0, 'monto' => 0];
-    $ventas_mes = ['total' => 0, 'monto' => 0];
+    $productos_stock_bajo = 0;
+    $ventas_hoy = 0;
+    $tickets_hoy = 0;
+    $ventas_mes = 0;
+    $tickets_mes = 0;
 }
 ?>
 <!DOCTYPE html>
@@ -46,313 +50,355 @@ try {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Inventario SuperZito</title>
+    <title>Inventario SuperZito</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
         }
-        
         .container {
-            max-width: 1400px;
+            max-width: 1200px;
             margin: 0 auto;
         }
-        
         .header {
             background: white;
-            border-radius: 20px;
-            padding: 30px;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
             margin-bottom: 30px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
         }
-        
-        .header h1 {
+        .header-left h1 {
             color: #667eea;
-            font-size: 2.5em;
+            font-size: 32px;
+            margin-bottom: 5px;
         }
-        
-        .user-info {
-            text-align: right;
-        }
-        
-        .user-info p {
+        .header-left p {
             color: #666;
-            margin-bottom: 10px;
+            font-size: 14px;
         }
-        
-        .user-info strong {
-            color: #333;
+        .header-right {
+            display: flex;
+            gap: 15px;
+            align-items: center;
         }
-        
-        .btn-logout {
+        .user-badge {
+            background: #f0f4ff;
             padding: 10px 20px;
-            background: #dc3545;
+            border-radius: 25px;
+            color: #667eea;
+            font-weight: bold;
+        }
+        .btn-logout {
+            background: #ff4444;
             color: white;
-            text-decoration: none;
+            padding: 10px 20px;
+            border: none;
             border-radius: 8px;
-            display: inline-block;
-            transition: all 0.3s;
+            text-decoration: none;
+            font-weight: bold;
+            cursor: pointer;
         }
         
-        .btn-logout:hover {
-            background: #c82333;
-            transform: translateY(-2px);
-        }
-        
+        /* Tarjetas de estadísticas */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 20px;
             margin-bottom: 30px;
         }
-        
         .stat-card {
             background: white;
-            border-radius: 15px;
             padding: 25px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            transition: all 0.3s;
+            border-radius: 15px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            text-align: center;
+            transition: transform 0.2s;
         }
-        
         .stat-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
         }
-        
         .stat-icon {
-            font-size: 40px;
+            font-size: 48px;
             margin-bottom: 10px;
         }
-        
         .stat-value {
-            font-size: 32px;
+            font-size: 36px;
             font-weight: bold;
             color: #667eea;
             margin-bottom: 5px;
         }
-        
         .stat-label {
             color: #666;
             font-size: 14px;
         }
         
-        .stat-card.warning .stat-value {
-            color: #ffc107;
-        }
-        
-        .stat-card.success .stat-value {
-            color: #28a745;
-        }
-        
-        .actions-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-        }
-        
-        .action-card {
+        /* Tarjetas de ventas con censura */
+        .ventas-card {
             background: white;
+            padding: 25px;
             border-radius: 15px;
-            padding: 30px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
             text-align: center;
-            transition: all 0.3s;
             cursor: pointer;
-            text-decoration: none;
-            color: inherit;
-            display: block;
+            user-select: none;
+            transition: all 0.3s;
+            position: relative;
         }
-        
-        .action-card:hover {
+        .ventas-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.15);
         }
-        
-        .action-icon {
-            font-size: 60px;
-            margin-bottom: 15px;
+        .ventas-card.revelado {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
         }
-        
-        .action-card h3 {
-            color: #667eea;
-            font-size: 1.5em;
+        .ventas-icon {
+            font-size: 48px;
             margin-bottom: 10px;
         }
+        .ventas-value {
+            font-size: 36px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .ventas-value.censurado {
+            color: #ddd;
+            letter-spacing: 2px;
+        }
+        .ventas-value.revelado {
+            color: white;
+        }
+        .ventas-label {
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        .ventas-card:not(.revelado) .ventas-label {
+            color: #666;
+        }
+        .ventas-card.revelado .ventas-label {
+            color: rgba(255,255,255,0.9);
+        }
+        .click-hint {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        .ventas-card.revelado .click-hint {
+            background: rgba(255,255,255,0.2);
+            color: white;
+        }
         
-        .action-card p {
+        /* Módulos de acción */
+        .modulos-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+        }
+        .modulo {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            text-align: center;
+            text-decoration: none;
+            color: inherit;
+            transition: all 0.3s;
+        }
+        .modulo:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+        }
+        .modulo-icon {
+            font-size: 64px;
+            margin-bottom: 15px;
+        }
+        .modulo-titulo {
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        .modulo-descripcion {
             color: #666;
             font-size: 14px;
         }
         
-        .action-card.primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
+        /* Colores de módulos */
+        .modulo-venta { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .modulo-venta .modulo-titulo, .modulo-venta .modulo-descripcion { color: white; }
         
-        .action-card.primary h3 {
-            color: white;
-        }
+        .modulo-entrada { background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%); color: white; }
+        .modulo-entrada .modulo-titulo, .modulo-entrada .modulo-descripcion { color: white; }
         
-        .action-card.primary p {
-            color: rgba(255,255,255,0.9);
-        }
+        .modulo-agregar { background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); color: white; }
+        .modulo-agregar .modulo-titulo, .modulo-agregar .modulo-descripcion { color: white; }
         
-        .action-card.success {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-            color: white;
-        }
-        
-        .action-card.success h3 {
-            color: white;
-        }
-        
-        .action-card.success p {
-            color: rgba(255,255,255,0.9);
-        }
-        
-        .badge {
-            display: inline-block;
-            padding: 5px 15px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: bold;
-            margin-left: 10px;
-        }
-        
-        .badge-danger {
-            background: #dc3545;
-            color: white;
-        }
-        
-        .badge-info {
-            background: #17a2b8;
-            color: white;
-        }
+        .modulo-historial:hover { border-color: #667eea; }
+        .modulo-cierre:hover { border-color: #4CAF50; }
+        .modulo-scanner:hover { border-color: #FF9800; }
         
         @media (max-width: 768px) {
-            .header {
-                flex-direction: column;
-                text-align: center;
+            .stats-grid {
+                grid-template-columns: 1fr;
             }
-            
-            .user-info {
-                text-align: center;
-                margin-top: 20px;
-            }
-            
-            .stats-grid, .actions-grid {
+            .modulos-grid {
                 grid-template-columns: 1fr;
             }
         }
     </style>
 </head>
 <body>
+    <div class="container">
+        <div class="header">
+            <div class="header-left">
+                <h1>🏪 Inventario SuperZito</h1>
+                <p>Sistema de Gestión de Inventario</p>
+            </div>
+            <div class="header-right">
+                <div class="user-badge">
+                    👤 Bienvenido, <?php echo htmlspecialchars($usuario_nombre); ?>
+                </div>
+                <a href="logout.php" class="btn-logout">🚪 Cerrar Sesión</a>
+            </div>
+        </div>
 
-<div class="container">
-    <!-- Header -->
-    <div class="header">
-        <div>
-            <h1>🏪 Inventario SuperZito</h1>
-            <p style="color: #666; margin-top: 10px;">Sistema de Gestión de Inventario</p>
+        <!-- Estadísticas -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">📦</div>
+                <div class="stat-value"><?php echo $total_productos; ?></div>
+                <div class="stat-label">Total de Productos</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-icon">⚠️</div>
+                <div class="stat-value" style="color: <?php echo $productos_stock_bajo > 0 ? '#ff4444' : '#4CAF50'; ?>;">
+                    <?php echo $productos_stock_bajo; ?>
+                </div>
+                <div class="stat-label">Productos con Stock Bajo</div>
+            </div>
+            
+            <!-- Ventas de hoy - CENSURADO -->
+            <div class="ventas-card" id="ventasHoy" onclick="revelarVentas('hoy')">
+                <span class="click-hint">👁️ Click</span>
+                <div class="ventas-icon">💰</div>
+                <div class="ventas-value censurado" id="valorHoy">$•••.••</div>
+                <div class="ventas-label">Ventas Hoy (<?php echo $tickets_hoy; ?> tickets)</div>
+            </div>
+            
+            <!-- Ventas del mes - CENSURADO -->
+            <div class="ventas-card" id="ventasMes" onclick="revelarVentas('mes')">
+                <span class="click-hint">👁️ Click</span>
+                <div class="ventas-icon">📊</div>
+                <div class="ventas-value censurado" id="valorMes">$•••.••</div>
+                <div class="ventas-label">Ventas del Mes (<?php echo $tickets_mes; ?> tickets)</div>
+            </div>
         </div>
-        <div class="user-info">
-            <p>👤 Bienvenido, <strong><?php echo htmlspecialchars($usuario_nombre); ?></strong></p>
-            <p>
-                <span class="badge <?php echo $es_encargado ? 'badge-danger' : 'badge-info'; ?>">
-                    <?php echo $es_encargado ? '🔑 Encargado' : '👷 Trabajador'; ?>
-                </span>
-            </p>
-            <a href="logout.php" class="btn-logout">🚪 Cerrar Sesión</a>
-        </div>
-    </div>
-    
-    <!-- Estadísticas -->
-    <div class="stats-grid">
-        <div class="stat-card">
-            <div class="stat-icon">📦</div>
-            <div class="stat-value"><?php echo $total_productos; ?></div>
-            <div class="stat-label">Total de Productos</div>
-        </div>
-        
-        <div class="stat-card warning">
-            <div class="stat-icon">⚠️</div>
-            <div class="stat-value"><?php echo $productos_bajo_stock; ?></div>
-            <div class="stat-label">Productos con Stock Bajo</div>
-        </div>
-        
-        <div class="stat-card success">
-            <div class="stat-icon">💰</div>
-            <div class="stat-value">$<?php echo number_format($ventas_hoy['monto'], 2); ?></div>
-            <div class="stat-label">Ventas Hoy (<?php echo $ventas_hoy['total']; ?> tickets)</div>
-        </div>
-        
-        <div class="stat-card success">
-            <div class="stat-icon">📊</div>
-            <div class="stat-value">$<?php echo number_format($ventas_mes['monto'], 2); ?></div>
-            <div class="stat-label">Ventas del Mes (<?php echo $ventas_mes['total']; ?> tickets)</div>
-        </div>
-    </div>
-    
-    <!-- Acciones Rápidas -->
-    <div class="actions-grid">
-        <!-- Punto de Venta -->
-        <a href="vender.php" class="action-card primary">
-            <div class="action-icon">💰</div>
-            <h3>Punto de Venta</h3>
-            <p>Realizar ventas y cobrar productos</p>
-        </a>
-        
-        <!-- Entrada de Mercancía -->
-        <a href="entrada_mercancia.php" class="action-card success">
-            <div class="action-icon">📥</div>
-            <h3>Entrada de Mercancía</h3>
-            <p>Aumentar stock de productos</p>
-        </a>
-        
-        <!-- Agregar Producto (solo encargados) -->
-        <?php if ($es_encargado): ?>
-        <a href="agregar_producto.php" class="action-card">
-            <div class="action-icon">➕</div>
-            <h3>Agregar Producto</h3>
-            <p>Registrar nuevos productos al inventario</p>
-        </a>
-        <?php endif; ?>
-        
-        <!-- Historial de Ventas -->
-        <a href="historial_ventas.php" class="action-card">
-            <div class="action-icon">📋</div>
-            <h3>Historial de Ventas</h3>
-            <p>Ver todas las ventas realizadas</p>
-        </a>
-        
-        <!-- Cierre de Caja (solo encargados) -->
-        <?php if ($es_encargado): ?>
-        <a href="cierre_caja.php" class="action-card">
-            <div class="action-icon">💵</div>
-            <h3>Cierre de Caja</h3>
-            <p>Realizar arqueo y cierre de caja</p>
-        </a>
-        <?php endif; ?>
-        
-        <!-- Escanear -->
-        <a href="escanear.php" class="action-card">
-            <div class="action-icon">🔫</div>
-            <h3>Escáner de Códigos</h3>
-            <p>Consultar productos por código de barras</p>
-        </a>
-    </div>
-</div>
 
+        <!-- Módulos principales -->
+        <div class="modulos-grid">
+            <a href="vender.php" class="modulo modulo-venta">
+                <div class="modulo-icon">💰</div>
+                <div class="modulo-titulo">Punto de Venta</div>
+                <div class="modulo-descripcion">Realizar ventas y cobrar productos</div>
+            </a>
+
+            <a href="entrada_mercancia.php" class="modulo modulo-entrada">
+                <div class="modulo-icon">📦</div>
+                <div class="modulo-titulo">Entrada de Mercancía</div>
+                <div class="modulo-descripcion">Aumentar stock de productos</div>
+            </a>
+
+            <a href="agregar_producto.php" class="modulo modulo-agregar">
+                <div class="modulo-icon">➕</div>
+                <div class="modulo-titulo">Agregar Producto</div>
+                <div class="modulo-descripcion">Registrar nuevos productos al inventario</div>
+            </a>
+
+            <a href="historial_ventas.php" class="modulo modulo-historial">
+                <div class="modulo-icon">📋</div>
+                <div class="modulo-titulo">Historial de Ventas</div>
+                <div class="modulo-descripcion">Ver todas las ventas realizadas</div>
+            </a>
+
+            <a href="cierre_caja.php" class="modulo modulo-cierre">
+                <div class="modulo-icon">💵</div>
+                <div class="modulo-titulo">Cierre de Caja</div>
+                <div class="modulo-descripcion">Realizar arqueo y cierre de caja</div>
+            </a>
+
+            <a href="escanear.php" class="modulo modulo-scanner">
+                <div class="modulo-icon">🔫</div>
+                <div class="modulo-titulo">Escáner de Códigos</div>
+                <div class="modulo-descripcion">Consultar productos por código de barras</div>
+            </a>
+        </div>
+    </div>
+
+    <script>
+        // Valores reales (PHP)
+        const ventasHoy = <?php echo $ventas_hoy; ?>;
+        const ventasMes = <?php echo $ventas_mes; ?>;
+        
+        // Estados de revelación
+        let hoyRevelado = false;
+        let mesRevelado = false;
+
+        function revelarVentas(tipo) {
+            if (tipo === 'hoy') {
+                const card = document.getElementById('ventasHoy');
+                const valor = document.getElementById('valorHoy');
+                
+                if (!hoyRevelado) {
+                    // Revelar
+                    card.classList.add('revelado');
+                    valor.classList.remove('censurado');
+                    valor.classList.add('revelado');
+                    valor.textContent = '$' + ventasHoy.toFixed(2);
+                    hoyRevelado = true;
+                } else {
+                    // Ocultar
+                    card.classList.remove('revelado');
+                    valor.classList.remove('revelado');
+                    valor.classList.add('censurado');
+                    valor.textContent = '$•••.••';
+                    hoyRevelado = false;
+                }
+            } else if (tipo === 'mes') {
+                const card = document.getElementById('ventasMes');
+                const valor = document.getElementById('valorMes');
+                
+                if (!mesRevelado) {
+                    // Revelar
+                    card.classList.add('revelado');
+                    valor.classList.remove('censurado');
+                    valor.classList.add('revelado');
+                    valor.textContent = '$' + ventasMes.toFixed(2);
+                    mesRevelado = true;
+                } else {
+                    // Ocultar
+                    card.classList.remove('revelado');
+                    valor.classList.remove('revelado');
+                    valor.classList.add('censurado');
+                    valor.textContent = '$•••.••';
+                    mesRevelado = false;
+                }
+            }
+        }
+    </script>
 </body>
 </html>
