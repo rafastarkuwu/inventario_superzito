@@ -7,8 +7,19 @@ if (!isset($_SESSION['usuario_id'])) {
     exit();
 }
 
+$usuario_id = $_SESSION['usuario_id'];
 $usuario_nombre = $_SESSION['usuario_nombre'];
 $rol = $_SESSION['rol'];
+
+// Verificar si hay una caja abierta para este usuario
+$stmt = $pdo->prepare("
+    SELECT * FROM Cajas 
+    WHERE id_encargado = ? AND estado = 'abierta' 
+    ORDER BY fecha_apertura DESC 
+    LIMIT 1
+");
+$stmt->execute([$usuario_id]);
+$caja_abierta = $stmt->fetch(PDO::FETCH_ASSOC);
 
 // Obtener estadísticas
 try {
@@ -105,6 +116,73 @@ try {
             text-decoration: none;
             font-weight: bold;
             cursor: pointer;
+        }
+        
+        /* Alerta de caja */
+        .alerta-caja {
+            background: linear-gradient(135deg, #FFA726 0%, #FB8C00 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(255, 167, 38, 0.3);
+        }
+        .alerta-caja h2 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        .alerta-caja p {
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+        .btn-abrir-caja {
+            background: white;
+            color: #FB8C00;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.3s;
+        }
+        .btn-abrir-caja:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        /* Info de caja abierta */
+        .info-caja-abierta {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+        }
+        .info-caja-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .info-caja-item {
+            background: rgba(255,255,255,0.2);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .info-caja-item .label {
+            font-size: 12px;
+            margin-bottom: 5px;
+            opacity: 0.9;
+        }
+        .info-caja-item .value {
+            font-size: 20px;
+            font-weight: bold;
         }
         
         /* Tarjetas de estadísticas */
@@ -248,10 +326,19 @@ try {
         
         .modulo-agregar { background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); color: white; }
         .modulo-agregar .modulo-titulo, .modulo-agregar .modulo-descripcion { color: white; }
+
+        .modulo-retiro { background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%); color: white; }
+        .modulo-retiro .modulo-titulo, .modulo-retiro .modulo-descripcion { color: white; }
         
         .modulo-historial:hover { border-color: #667eea; }
         .modulo-cierre:hover { border-color: #4CAF50; }
         .modulo-scanner:hover { border-color: #FF9800; }
+
+        .modulo-deshabilitado {
+            opacity: 0.5;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
         
         @media (max-width: 768px) {
             .stats-grid {
@@ -277,6 +364,36 @@ try {
                 <a href="logout.php" class="btn-logout">🚪 Cerrar Sesión</a>
             </div>
         </div>
+
+        <?php if (!$caja_abierta): ?>
+        <!-- ALERTA: NO HAY CAJA ABIERTA -->
+        <div class="alerta-caja">
+            <h2>⚠️ No tienes una caja abierta</h2>
+            <p>Debes abrir una caja antes de poder realizar ventas o retiros</p>
+            <a href="apertura_caja.php" class="btn-abrir-caja">
+                🔓 Abrir Caja Ahora
+            </a>
+        </div>
+        <?php else: ?>
+        <!-- INFO: CAJA ABIERTA -->
+        <div class="info-caja-abierta">
+            <h2 style="text-align: center; margin-bottom: 10px;">✅ Caja Abierta - Turno Activo</h2>
+            <div class="info-caja-grid">
+                <div class="info-caja-item">
+                    <div class="label">🕐 Hora Apertura</div>
+                    <div class="value"><?php echo date('H:i', strtotime($caja_abierta['fecha_apertura'])); ?></div>
+                </div>
+                <div class="info-caja-item">
+                    <div class="label">💵 Monto Inicial</div>
+                    <div class="value">$<?php echo number_format($caja_abierta['monto_inicial'], 2); ?></div>
+                </div>
+                <div class="info-caja-item">
+                    <div class="label">📅 Fecha</div>
+                    <div class="value"><?php echo date('d/m/Y', strtotime($caja_abierta['fecha_apertura'])); ?></div>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
 
         <!-- Estadísticas -->
         <div class="stats-grid">
@@ -313,10 +430,13 @@ try {
 
         <!-- Módulos principales -->
         <div class="modulos-grid">
-            <a href="vender.php" class="modulo modulo-venta">
+            <a href="vender.php" class="modulo modulo-venta <?php echo !$caja_abierta ? 'modulo-deshabilitado' : ''; ?>">
                 <div class="modulo-icon">💰</div>
                 <div class="modulo-titulo">Punto de Venta</div>
                 <div class="modulo-descripcion">Realizar ventas y cobrar productos</div>
+                <?php if (!$caja_abierta): ?>
+                    <div style="margin-top: 10px; font-size: 12px; color: rgba(255,255,255,0.8);">⚠️ Requiere caja abierta</div>
+                <?php endif; ?>
             </a>
 
             <a href="entrada_mercancia.php" class="modulo modulo-entrada">
@@ -331,16 +451,27 @@ try {
                 <div class="modulo-descripcion">Registrar nuevos productos al inventario</div>
             </a>
 
+            <?php if ($caja_abierta): ?>
+            <a href="retiro_efectivo.php" class="modulo modulo-retiro">
+                <div class="modulo-icon">💸</div>
+                <div class="modulo-titulo">Retiro de Efectivo</div>
+                <div class="modulo-descripcion">Sacar dinero de la caja</div>
+            </a>
+            <?php endif; ?>
+
             <a href="historial_ventas.php" class="modulo modulo-historial">
                 <div class="modulo-icon">📋</div>
                 <div class="modulo-titulo">Historial de Ventas</div>
                 <div class="modulo-descripcion">Ver todas las ventas realizadas</div>
             </a>
 
-            <a href="cierre_caja.php" class="modulo modulo-cierre">
+            <a href="cierre_caja.php" class="modulo modulo-cierre <?php echo !$caja_abierta ? 'modulo-deshabilitado' : ''; ?>">
                 <div class="modulo-icon">💵</div>
                 <div class="modulo-titulo">Cierre de Caja</div>
                 <div class="modulo-descripcion">Realizar arqueo y cierre de caja</div>
+                <?php if (!$caja_abierta): ?>
+                    <div style="margin-top: 10px; font-size: 12px; color: #999;">⚠️ Requiere caja abierta</div>
+                <?php endif; ?>
             </a>
 
             <a href="escanear.php" class="modulo modulo-scanner">
@@ -366,14 +497,12 @@ try {
                 const valor = document.getElementById('valorHoy');
                 
                 if (!hoyRevelado) {
-                    // Revelar
                     card.classList.add('revelado');
                     valor.classList.remove('censurado');
                     valor.classList.add('revelado');
                     valor.textContent = '$' + ventasHoy.toFixed(2);
                     hoyRevelado = true;
                 } else {
-                    // Ocultar
                     card.classList.remove('revelado');
                     valor.classList.remove('revelado');
                     valor.classList.add('censurado');
@@ -385,14 +514,12 @@ try {
                 const valor = document.getElementById('valorMes');
                 
                 if (!mesRevelado) {
-                    // Revelar
                     card.classList.add('revelado');
                     valor.classList.remove('censurado');
                     valor.classList.add('revelado');
                     valor.textContent = '$' + ventasMes.toFixed(2);
                     mesRevelado = true;
                 } else {
-                    // Ocultar
                     card.classList.remove('revelado');
                     valor.classList.remove('revelado');
                     valor.classList.add('censurado');
