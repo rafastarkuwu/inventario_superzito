@@ -18,7 +18,7 @@ try {
     // Obtener información de la venta CON el nombre del vendedor
     $stmt = $pdo->prepare("
         SELECT v.id_venta, v.fecha_venta, v.total, v.id_encargado,
-               e.nombre as vendedor
+               e.usuario as vendedor
         FROM Ventas v
         LEFT JOIN Encargado e ON v.id_encargado = e.id_encargado
         WHERE v.id_venta = ?
