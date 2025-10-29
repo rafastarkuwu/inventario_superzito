@@ -64,9 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $concepto ?: 'Pago a proveedor'
         ]);
         
-        // Registrar el retiro en la tabla de Retiros (si existe)
-        // Si tu sistema tiene una tabla de Retiros, descomentar esto:
-        /*
+        // Registrar el pago como retiro de efectivo en la tabla Retiros
         $stmt = $pdo->prepare("
             INSERT INTO Retiros (id_caja, id_usuario, monto, concepto, fecha_retiro)
             VALUES (?, ?, ?, ?, NOW())
@@ -75,9 +73,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $caja_abierta['id_caja'],
             $usuario_id,
             $monto,
-            'Pago a proveedor: ' . $proveedor['nombre_proveedor']
+            'Pago a proveedor: ' . $proveedor['nombre_proveedor'] . ($concepto ? ' - ' . $concepto : '')
         ]);
-        */
         
         $pdo->commit();
         
