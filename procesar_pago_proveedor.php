@@ -66,13 +66,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         // Registrar el pago como retiro de efectivo en la tabla Retiros
         $stmt = $pdo->prepare("
-            INSERT INTO Retiros (id_caja, id_usuario, monto, concepto, fecha_retiro)
-            VALUES (?, ?, ?, ?, NOW())
+            INSERT INTO Retiros (id_caja, id_encargado, fecha_retiro, monto, motivo, observaciones)
+            VALUES (?, ?, NOW(), ?, ?, ?)
         ");
         $stmt->execute([
             $caja_abierta['id_caja'],
             $usuario_id,
             $monto,
+            'Pago a proveedor',
             'Pago a proveedor: ' . $proveedor['nombre_proveedor'] . ($concepto ? ' - ' . $concepto : '')
         ]);
         
