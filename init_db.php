@@ -11,7 +11,7 @@ if (!$db) {
 
 try {
     // Leer el archivo SQL (ajusta el nombre si usas schemma.sql)
-    $sql = file_get_contents('schema.sql'); // o 'schemma.sql'
+    $sql = file_get_contents(__DIR__ . '/schemma.sql'); // o 'schemma.sql'
     
     if ($sql === false) {
         die("No se pudo leer schema.sql");
