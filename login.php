@@ -10,7 +10,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     
     $usuario = $_POST['usuario'];
     $password = $_POST['password'];
-    $tipo = $_POST['tipo']; // 'encargado' o 'trabajador'
+    $tipo = $_POST['tipo'];
     
     try {
         if ($tipo == 'encargado') {
@@ -38,7 +38,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $_SESSION['tipo'] = $tipo;
             $_SESSION['id'] = $tipo == 'encargado' ? $user['id_encargado'] : $user['id_trabajador'];
             
-            // Usar JavaScript para redirigir (evita el warning de headers)
             echo "<script>window.location.href='index.php';</script>";
             exit();
         } else {
@@ -181,38 +180,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             25% { transform: translateX(-10px); }
             75% { transform: translateX(10px); }
         }
-        
-        .credentials-info {
-            margin-top: 30px;
-            padding: 20px;
-            background: #f8f9fa;
-            border-radius: 10px;
-            font-size: 13px;
-            border: 2px solid #e9ecef;
-        }
-        
-        .credentials-info h3 {
-            color: #667eea;
-            margin-bottom: 10px;
-            font-size: 14px;
-        }
-        
-        .credentials-info p {
-            margin: 5px 0;
-            color: #666;
-        }
-        
-        .credentials-info strong {
-            color: #333;
-        }
-        
-        .credentials-info code {
-            background: #e9ecef;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-family: 'Courier New', monospace;
-            color: #667eea;
-        }
     </style>
 </head>
 <body>
@@ -252,16 +219,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         
         <button type="submit" class="btn-login">🚀 Iniciar Sesión</button>
     </form>
-    
-    <div class="credentials-info">
-        <h3>👥 Usuarios de prueba:</h3>
-        <p>👔 <strong>Encargados:</strong></p>
-        <p>• Usuario: <code>alfredo</code> / Pass: <code>alfredo123</code></p>
-        <p>• Usuario: <code>daniel</code> / Pass: <code>daniel123</code></p>
-        <p>👷 <strong>Trabajadores:</strong></p>
-        <p>• Usuario: <code>luis</code> / Pass: <code>luis123</code></p>
-        <p>• Usuario: <code>blanca</code> / Pass: <code>blanca123</code></p>
-    </div>
 </div>
 
 </body>
