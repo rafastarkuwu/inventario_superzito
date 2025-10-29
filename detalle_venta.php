@@ -15,14 +15,11 @@ if ($venta_id <= 0) {
 }
 
 try {
-    // Obtener información de la venta
+    // Obtener información de la venta - CORREGIDO: usar tabla 'ventas'
     $stmt = $pdo->prepare("
-        SELECT v.id_venta, v.fecha_venta, v.total, 
-               CONCAT(p.nombre, ' ', p.apellido) as vendedor
-        FROM Ventas v
-        LEFT JOIN Encargado e ON v.id_encargado = e.id_encargado
-        LEFT JOIN Persona p ON e.id_persona = p.id_persona
-        WHERE v.id_venta = ?
+        SELECT id as id_venta, fecha_venta, total, usuario_nombre as vendedor
+        FROM ventas
+        WHERE id = ?
     ");
     $stmt->execute([$venta_id]);
     $venta = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -32,15 +29,14 @@ try {
         exit();
     }
     
-    // Obtener detalle de productos
+    // Obtener detalle de productos - CORREGIDO: usar tabla 'venta_detalle'
     $stmt = $pdo->prepare("
-        SELECT dv.cantidad, dv.precio_unitario, 
-               (dv.cantidad * dv.precio_unitario) as subtotal,
-               pr.nombre_producto, pr.codigo_barras
-        FROM Detalle_Venta dv
-        INNER JOIN Productos pr ON dv.id_producto = pr.id_producto
-        WHERE dv.id_venta = ?
-        ORDER BY dv.id_detalle_venta
+        SELECT vd.cantidad, vd.precio_unitario, vd.subtotal,
+               p.nombre_producto, p.codigo_barras
+        FROM venta_detalle vd
+        LEFT JOIN Productos p ON vd.producto_id = p.id_producto
+        WHERE vd.venta_id = ?
+        ORDER BY vd.id
     ");
     $stmt->execute([$venta_id]);
     $productos = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -242,6 +238,7 @@ try {
             <!-- Productos vendidos -->
             <div class="productos-box">
                 <h2>🛒 Productos Vendidos</h2>
+                <?php if (count($productos) > 0): ?>
                 <table>
                     <thead>
                         <tr>
@@ -254,23 +251,28 @@ try {
                     <tbody>
                         <?php foreach ($productos as $prod): ?>
                             <?php
-                            // Detectar si es granel
-                            $esGranel = strpos($prod['codigo_barras'], 'GRANEL-') === 0;
+                            // Detectar si es granel (cantidad con decimales)
+                            $esGranel = ($prod['cantidad'] != intval($prod['cantidad']));
                             $cantidad_formato = $esGranel ? number_format($prod['cantidad'], 3) . ' kg' : number_format($prod['cantidad'], 0);
+                            
+                            // Si no hay nombre de producto (NULL), mostrar mensaje
+                            $nombre_producto = $prod['nombre_producto'] ?? 'Producto no encontrado';
                             ?>
                             <tr>
                                 <td>
                                     <div class="producto-nombre">
-                                        <?php echo htmlspecialchars($prod['nombre_producto']); ?>
+                                        <?php echo htmlspecialchars($nombre_producto); ?>
                                     </div>
-                                    <?php if (!$esGranel): ?>
-                                        <div class="producto-codigo">
-                                            Código: <?php echo htmlspecialchars($prod['codigo_barras']); ?>
-                                        </div>
-                                    <?php else: ?>
-                                        <div class="producto-codigo" style="color: #F57C00;">
-                                            ⚖️ Producto a granel
-                                        </div>
+                                    <?php if ($prod['codigo_barras']): ?>
+                                        <?php if (!$esGranel): ?>
+                                            <div class="producto-codigo">
+                                                Código: <?php echo htmlspecialchars($prod['codigo_barras']); ?>
+                                            </div>
+                                        <?php else: ?>
+                                            <div class="producto-codigo" style="color: #F57C00;">
+                                                ⚖️ Producto a granel
+                                            </div>
+                                        <?php endif; ?>
                                     <?php endif; ?>
                                 </td>
                                 <td class="cantidad"><?php echo $cantidad_formato; ?></td>
@@ -280,6 +282,11 @@ try {
                         <?php endforeach; ?>
                     </tbody>
                 </table>
+                <?php else: ?>
+                    <div style="text-align: center; padding: 40px; color: #999;">
+                        No hay productos registrados en esta venta
+                    </div>
+                <?php endif; ?>
             </div>
 
             <!-- Total -->
