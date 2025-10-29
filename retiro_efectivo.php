@@ -51,7 +51,7 @@ $dinero_disponible = $monto_inicial + $monto_ventas - $monto_retiros;
 $mensaje = '';
 $tipo_mensaje = '';
 
-// Procesar retiro
+// Procesar retiro - CORREGIDO
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['retirar'])) {
     $monto_retiro = floatval($_POST['monto_retiro']);
     $motivo = trim($_POST['motivo']);
@@ -68,10 +68,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['retirar'])) {
     } else {
         try {
             $stmt = $pdo->prepare("
-                INSERT INTO Retiros (id_caja, monto, motivo, fecha_retiro) 
-                VALUES (?, ?, ?, NOW())
+                INSERT INTO Retiros (id_caja, id_encargado, monto, motivo, fecha_retiro) 
+                VALUES (?, ?, ?, ?, NOW())
             ");
-            $stmt->execute([$caja_actual['id_caja'], $monto_retiro, $motivo]);
+            $stmt->execute([$caja_actual['id_caja'], $usuario_id, $monto_retiro, $motivo]);
             
             $mensaje = "✅ Retiro registrado exitosamente. $" . number_format($monto_retiro, 2);
             $tipo_mensaje = "success";
