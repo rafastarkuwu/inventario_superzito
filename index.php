@@ -153,41 +153,6 @@ try {
             transform: scale(1.05);
             box-shadow: 0 4px 12px rgba(0,0,0,0.2);
         }
-
-        /* Info de caja abierta */
-        .info-caja-abierta {
-            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
-            color: white;
-            padding: 20px;
-            border-radius: 15px;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
-        }
-        .info-caja-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-top: 15px;
-        }
-        .info-caja-item {
-            background: rgba(255,255,255,0.2);
-            padding: 15px;
-            border-radius: 10px;
-            text-align: center;
-            transition: all 0.3s;
-        }
-        .info-caja-item:hover {
-            background: rgba(255,255,255,0.3);
-        }
-        .info-caja-item .label {
-            font-size: 12px;
-            margin-bottom: 5px;
-            opacity: 0.9;
-        }
-        .info-caja-item .value {
-            font-size: 20px;
-            font-weight: bold;
-        }
         
         /* Tarjetas de estadísticas */
         .stats-grid {
@@ -378,32 +343,6 @@ try {
                 🔓 Abrir Caja Ahora
             </a>
         </div>
-        <?php else: ?>
-        <!-- INFO: CAJA ABIERTA -->
-        <div class="info-caja-abierta">
-            <h2 style="text-align: center; margin-bottom: 10px;">✅ Caja Abierta - Turno Activo</h2>
-            <div class="info-caja-grid">
-                <div class="info-caja-item">
-                    <div class="label">🕐 Hora Apertura</div>
-                    <div class="value"><?php 
-                        $fecha = new DateTime($caja_abierta['fecha_apertura']);
-                        echo $fecha->format('H:i'); 
-                    ?></div>
-                </div>
-                <div class="info-caja-item" onclick="revelarMonto()" style="cursor: pointer;" id="montoInicial" title="Click para ver">
-                    <div class="label">💵 Monto Inicial</div>
-                    <div class="value" id="valorMonto">$•••.••</div>
-                    <div style="font-size: 10px; opacity: 0.8; margin-top: 5px;">👁️ Click para ver</div>
-                </div>
-                <div class="info-caja-item">
-                    <div class="label">📅 Fecha</div>
-                    <div class="value"><?php 
-                        $fecha = new DateTime($caja_abierta['fecha_apertura']);
-                        echo $fecha->format('d/m/Y'); 
-                    ?></div>
-                </div>
-            </div>
-        </div>
         <?php endif; ?>
 
         <!-- Estadísticas -->
@@ -497,10 +436,6 @@ try {
         // Valores reales (PHP)
         const ventasHoy = <?php echo $ventas_hoy; ?>;
         const ventasMes = <?php echo $ventas_mes; ?>;
-        <?php if ($caja_abierta): ?>
-        const montoInicial = <?php echo $caja_abierta['monto_inicial']; ?>;
-        let montoRevelado = false;
-        <?php endif; ?>
         
         // Estados de revelación
         let hoyRevelado = false;
@@ -543,20 +478,6 @@ try {
                 }
             }
         }
-
-        <?php if ($caja_abierta): ?>
-        function revelarMonto() {
-            const valor = document.getElementById('valorMonto');
-            
-            if (!montoRevelado) {
-                valor.textContent = '$' + montoInicial.toFixed(2);
-                montoRevelado = true;
-            } else {
-                valor.textContent = '$•••.••';
-                montoRevelado = false;
-            }
-        }
-        <?php endif; ?>
     </script>
 </body>
 </html>
