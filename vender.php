@@ -16,10 +16,11 @@ if (isset($_GET['api']) && $_GET['api'] === 'buscar_codigo' && isset($_GET['codi
     
     $codigo = trim($_GET['codigo']);
     $stmt = $pdo->prepare("
-        SELECT p.id_producto as id, p.nombre_producto as nombre, p.precio_venta as precio, p.codigo_barras, i.stock_actual as stock 
+        SELECT p.id_producto as id, p.nombre_producto as nombre, p.precio_venta as precio, 
+               p.codigo_barras, COALESCE(i.stock_actual, 999) as stock 
         FROM Productos p 
-        INNER JOIN Inventario i ON p.id_inventario = i.id_inventario 
-        WHERE p.codigo_barras = :codigo AND i.stock_actual > 0
+        LEFT JOIN Inventario i ON p.id_inventario = i.id_inventario 
+        WHERE p.codigo_barras = :codigo
     ");
     $stmt->execute([':codigo' => $codigo]);
     $producto = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -35,10 +36,11 @@ if (isset($_GET['api']) && $_GET['api'] === 'buscar_nombre' && isset($_GET['nomb
     $nombre = trim($_GET['nombre']);
     $termino = '%' . $nombre . '%';
     $stmt = $pdo->prepare("
-        SELECT p.id_producto as id, p.nombre_producto as nombre, p.precio_venta as precio, p.codigo_barras, i.stock_actual as stock 
+        SELECT p.id_producto as id, p.nombre_producto as nombre, p.precio_venta as precio, 
+               p.codigo_barras, COALESCE(i.stock_actual, 999) as stock 
         FROM Productos p 
-        INNER JOIN Inventario i ON p.id_inventario = i.id_inventario 
-        WHERE p.nombre_producto LIKE :termino AND i.stock_actual > 0
+        LEFT JOIN Inventario i ON p.id_inventario = i.id_inventario 
+        WHERE p.nombre_producto LIKE :termino
         LIMIT 10
     ");
     $stmt->execute([':termino' => $termino]);
@@ -48,7 +50,7 @@ if (isset($_GET['api']) && $_GET['api'] === 'buscar_nombre' && isset($_GET['nomb
     exit();
 }
 
-// Procesar venta - CÓDIGO CORREGIDO
+// Procesar venta
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
     $carrito = json_decode($_POST['carrito'], true);
     
@@ -61,47 +63,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
                 $total += floatval($item['subtotal']);
             }
             
-            // Insertar venta - CORREGIDO: usar tabla 'ventas' en minúsculas
+            // Insertar venta
             $stmt = $pdo->prepare("
-                INSERT INTO ventas (usuario_nombre, fecha_venta, total) 
-                VALUES (:usuario_nombre, NOW(), :total)
+                INSERT INTO Ventas (id_encargado, fecha_venta, total) 
+                VALUES (?, NOW(), ?)
             ");
-            $stmt->execute([
-                ':usuario_nombre' => $usuario_nombre,
-                ':total' => $total
-            ]);
+            $stmt->execute([$usuario_id, $total]);
             
             $venta_id = $pdo->lastInsertId();
             
-            // Insertar detalle - CORREGIDO: usar tabla 'venta_detalle' y agregar subtotal
+            // Insertar detalle
             foreach ($carrito as $item) {
                 $stmt = $pdo->prepare("
-                    INSERT INTO venta_detalle (venta_id, producto_id, cantidad, precio_unitario, subtotal) 
-                    VALUES (:venta_id, :producto_id, :cantidad, :precio_unitario, :subtotal)
+                    INSERT INTO Venta_Detalle (id_venta, id_producto, cantidad, precio_unitario, subtotal) 
+                    VALUES (?, ?, ?, ?, ?)
                 ");
                 $stmt->execute([
-                    ':venta_id' => $venta_id,
-                    ':producto_id' => $item['id'],
-                    ':cantidad' => $item['cantidad'],
-                    ':precio_unitario' => $item['precio'],
-                    ':subtotal' => $item['subtotal']
+                    $venta_id,
+                    $item['id'],
+                    $item['cantidad'],
+                    $item['precio'],
+                    $item['subtotal']
                 ]);
                 
-                // Solo actualizar stock si es producto por unidad (cantidad entera)
-                if ($item['cantidad'] == intval($item['cantidad'])) {
+                // Actualizar stock solo para productos unitarios
+                if ($item['tipo'] === 'unitario') {
                     $stmt = $pdo->prepare("
                         UPDATE Inventario 
-                        SET stock_actual = stock_actual - :cantidad 
+                        SET stock_actual = stock_actual - ? 
                         WHERE id_inventario = (
                             SELECT id_inventario 
                             FROM Productos 
-                            WHERE id_producto = :id
+                            WHERE id_producto = ?
                         )
                     ");
-                    $stmt->execute([
-                        ':cantidad' => intval($item['cantidad']),
-                        ':id' => $item['id']
-                    ]);
+                    $stmt->execute([intval($item['cantidad']), $item['id']]);
                 }
             }
             
@@ -817,7 +813,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
         // Validar antes de cobrar
         document.getElementById('formVenta').addEventListener('submit', function(e) {
             const total = carrito.reduce((sum, item) => sum + item.subtotal, 0);
-            if (!confirm('💵 COBRAR  + total.toFixed(2) + '?')) {
+            if (!confirm('💵 COBRAR $' + total.toFixed(2) + '?')) {
                 e.preventDefault();
             }
         });
