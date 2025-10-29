@@ -147,53 +147,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             font-size: 14px;
         }
         
-        .divider {
-            text-align: center;
-            margin: 30px 0;
-            color: #999;
-            position: relative;
-        }
-        
-        .divider::before,
-        .divider::after {
-            content: '';
-            position: absolute;
-            top: 50%;
-            width: 45%;
-            height: 1px;
-            background: #e0e0e0;
-        }
-        
-        .divider::before {
-            left: 0;
-        }
-        
-        .divider::after {
-            right: 0;
-        }
-        
-        .demo-credentials {
-            background: #e8eaf6;
-            padding: 15px;
-            border-radius: 8px;
-            font-size: 13px;
-        }
-        
-        .demo-credentials h4 {
-            color: #667eea;
-            margin-bottom: 10px;
-            font-size: 14px;
-        }
-        
-        .demo-credentials p {
-            color: #666;
-            margin: 5px 0;
-        }
-        
-        .demo-credentials strong {
-            color: #333;
-        }
-        
         @media (max-width: 480px) {
             .login-container {
                 padding: 30px 20px;
@@ -243,20 +196,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 🚀 Iniciar Sesión
             </button>
         </form>
-        
-        <div class="divider">Credenciales de Prueba</div>
-        
-        <div class="demo-credentials">
-            <h4>👑 Encargado (Acceso Completo)</h4>
-            <p><strong>Usuario:</strong> admin</p>
-            <p><strong>Contraseña:</strong> admin123</p>
-        </div>
-        
-        <div class="demo-credentials" style="margin-top: 10px;">
-            <h4>👷 Trabajador (Acceso Limitado)</h4>
-            <p><strong>Usuario:</strong> trabajador</p>
-            <p><strong>Contraseña:</strong> trabajador123</p>
-        </div>
     </div>
 </body>
 </html>
