@@ -91,25 +91,25 @@ $queries = [
     "CREATE INDEX idx_stock ON Inventario(stock_actual, stock_minimo)",
     "CREATE INDEX idx_fecha_venta ON Ventas(fecha_venta)",
     
-    // DATOS DE PRUEBA - Alfredo Mendoza
+    // Alfredo Mendoza - Encargado
     "INSERT INTO Persona (nombre, apellido, telefono, email) 
      VALUES ('Alfredo', 'Mendoza', '5551111111', 'alfredo.mendoza@superzito.com')",
     "INSERT INTO Encargado (id_persona, usuario, password) 
      VALUES (LAST_INSERT_ID(), 'alfredo', 'alfredo123')",
     
-    // Daniel Mendoza
+    // Daniel Mendoza - Encargado
     "INSERT INTO Persona (nombre, apellido, telefono, email) 
      VALUES ('Daniel', 'Mendoza', '5552222222', 'daniel.mendoza@superzito.com')",
     "INSERT INTO Encargado (id_persona, usuario, password) 
      VALUES (LAST_INSERT_ID(), 'daniel', 'daniel123')",
     
-    // Luis Mendoza
+    // Luis Mendoza - Trabajador
     "INSERT INTO Persona (nombre, apellido, telefono, email) 
      VALUES ('Luis', 'Mendoza', '5553333333', 'luis.mendoza@superzito.com')",
     "INSERT INTO Trabajadores (id_persona, usuario, password) 
      VALUES (LAST_INSERT_ID(), 'luis', 'luis123')",
     
-    // Blanca García
+    // Blanca García - Trabajadora
     "INSERT INTO Persona (nombre, apellido, telefono, email) 
      VALUES ('Blanca', 'García', '5554444444', 'blanca.garcia@superzito.com')",
     "INSERT INTO Trabajadores (id_persona, usuario, password) 
@@ -142,11 +142,12 @@ echo "<hr>";
 echo "<h3>🎉 ¡Proceso completado!</h3>";
 echo "<p><strong>Credenciales de acceso:</strong></p>";
 echo "<ul>";
-echo "<li>👔 Encargado 1: <strong>alfredo</strong> / <strong>alfredo123</strong></li>";
-echo "<li>👔 Encargado 2: <strong>daniel</strong> / <strong>daniel123</strong></li>";
-echo "<li>👷 Trabajador 1: <strong>luis</strong> / <strong>luis123</strong></li>";
-echo "<li>👷 Trabajador 2: <strong>blanca</strong> / <strong>blanca123</strong></li>";
+echo "<li>👔 <strong>Encargado 1:</strong> usuario: <code>alfredo</code> / password: <code>alfredo123</code></li>";
+echo "<li>👔 <strong>Encargado 2:</strong> usuario: <code>daniel</code> / password: <code>daniel123</code></li>";
+echo "<li>👷 <strong>Trabajador 1:</strong> usuario: <code>luis</code> / password: <code>luis123</code></li>";
+echo "<li>👷 <strong>Trabajador 2:</strong> usuario: <code>blanca</code> / password: <code>blanca123</code></li>";
 echo "</ul>";
-echo "<br><a href='login.php' style='background: #667eea; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;'>🚀 Ir al Login</a>";
-echo "<br><br><p style='color: red;'><strong>⚠️ IMPORTANTE: Elimina este archivo (ejecutar_schema.php) después de usarlo por seguridad.</strong></p>";
+echo "<br><a href='test.php' style='background: #2196F3; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;'>🔍 Verificar Tablas</a> ";
+echo "<a href='login.php' style='background: #667eea; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;'>🚀 Ir al Login</a>";
+echo "<br><br><p style='color: red; background: #fee; padding: 15px; border-left: 4px solid red;'><strong>⚠️ IMPORTANTE: Elimina este archivo (ejecutar_schema.php) después de usarlo por seguridad.</strong></p>";
 ?>
