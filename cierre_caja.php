@@ -44,7 +44,7 @@ $stmt = $pdo->prepare("
         COALESCE(SUM(monto), 0) as total_dinero_retiros
     FROM Retiros 
     WHERE id_caja = ?
-    AND concepto NOT LIKE 'Pago a proveedor:%'
+    AND motivo NOT LIKE 'Pago a proveedor%'
 ");
 $stmt->execute([$caja_actual['id_caja']]);
 $retiros_normales = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -56,7 +56,7 @@ $stmt = $pdo->prepare("
         COALESCE(SUM(monto), 0) as total_dinero_pagos
     FROM Retiros 
     WHERE id_caja = ?
-    AND concepto LIKE 'Pago a proveedor:%'
+    AND motivo LIKE 'Pago a proveedor%'
 ");
 $stmt->execute([$caja_actual['id_caja']]);
 $pagos_proveedores = $stmt->fetch(PDO::FETCH_ASSOC);
