@@ -4,13 +4,11 @@ require_once 'config.php';
 
 $error = '';
 
-// Si ya está logueado, redirigir al dashboard
 if (isset($_SESSION['usuario_id'])) {
     header("Location: index.php");
     exit();
 }
 
-// Procesar login
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $usuario = trim($_POST['usuario']);
     $password = trim($_POST['password']);
@@ -19,17 +17,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Por favor ingresa usuario y contraseña';
     } else {
         try {
-            $stmt = $pdo->prepare("SELECT * FROM usuarios WHERE usuario = :usuario");
+            // Buscar primero en Encargado
+            $stmt = $pdo->prepare("SELECT id_encargado as id, id_persona, usuario, password FROM Encargado WHERE usuario = :usuario");
             $stmt->execute([':usuario' => $usuario]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
+            $rol = 'encargado';
             
-            if ($user && password_verify($password, $user['password'])) {
-                // Login exitoso
+            // Si no está en Encargado, buscar en Trabajadores
+            if (!$user) {
+                $stmt = $pdo->prepare("SELECT id_trabajador as id, id_persona, usuario, password FROM Trabajadores WHERE usuario = :usuario");
+                $stmt->execute([':usuario' => $usuario]);
+                $user = $stmt->fetch(PDO::FETCH_ASSOC);
+                $rol = 'trabajador';
+            }
+            
+            // Verificar contraseña
+            if ($user && $user['password'] === $password) {
+                // Obtener nombre de la tabla Persona
+                $stmt = $pdo->prepare("SELECT nombre, apellidoP FROM Persona WHERE id_persona = :id");
+                $stmt->execute([':id' => $user['id_persona']]);
+                $persona = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                $nombre_completo = $persona['nombre'] . ' ' . $persona['apellidoP'];
+                
                 $_SESSION['usuario_id'] = $user['id'];
-                $_SESSION['usuario_nombre'] = $user['nombre'];
-                $_SESSION['nombre'] = $user['nombre']; // Para compatibilidad
-                $_SESSION['rol'] = $user['rol'];
-                $_SESSION['tipo'] = $user['rol']; // Para compatibilidad
+                $_SESSION['usuario_nombre'] = $nombre_completo;
+                $_SESSION['nombre'] = $nombre_completo;
+                $_SESSION['rol'] = $rol;
+                $_SESSION['tipo'] = $rol;
+                $_SESSION['usuario'] = $usuario;
                 
                 header("Location: index.php");
                 exit();
@@ -37,8 +53,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = 'Usuario o contraseña incorrectos';
             }
         } catch (Exception $e) {
-            $error = 'Error al iniciar sesión. Por favor intenta de nuevo.';
-            error_log("Error de login: " . $e->getMessage());
+            $error = 'Error al iniciar sesión';
+            error_log("Error login: " . $e->getMessage());
         }
     }
 }
@@ -48,14 +64,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Inventario SuperZito</title>
+    <title>Login - SuperZito</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -65,8 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             align-items: center;
             padding: 20px;
         }
-        
-        .login-container {
+        .login-box {
             background: white;
             padding: 40px;
             border-radius: 20px;
@@ -74,50 +84,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             max-width: 400px;
             width: 100%;
         }
-        
         .logo {
             text-align: center;
             margin-bottom: 30px;
         }
-        
         .logo h1 {
             color: #667eea;
             font-size: 2em;
-            margin-bottom: 10px;
+            margin-bottom: 5px;
         }
-        
         .logo p {
             color: #666;
             font-size: 14px;
         }
-        
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
         .form-group {
             margin-bottom: 20px;
         }
-        
         .form-group label {
             display: block;
             color: #333;
             font-weight: 600;
             margin-bottom: 8px;
-            font-size: 14px;
         }
-        
         .form-group input {
             width: 100%;
-            padding: 12px 15px;
+            padding: 12px;
             border: 2px solid #e0e0e0;
             border-radius: 8px;
             font-size: 16px;
-            transition: all 0.3s;
         }
-        
         .form-group input:focus {
             outline: none;
             border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
-        
         .btn-login {
             width: 100%;
             padding: 15px;
@@ -128,73 +135,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             font-size: 18px;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s;
         }
-        
         .btn-login:hover {
             background: #5568d3;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-        }
-        
-        .error {
-            background: #f8d7da;
-            color: #721c24;
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            border: 1px solid #f5c6cb;
-            font-size: 14px;
-        }
-        
-        @media (max-width: 480px) {
-            .login-container {
-                padding: 30px 20px;
-            }
-            
-            .logo h1 {
-                font-size: 1.5em;
-            }
         }
     </style>
 </head>
 <body>
-    <div class="login-container">
+    <div class="login-box">
         <div class="logo">
             <h1>🏪 SuperZito</h1>
             <p>Sistema de Gestión de Inventario</p>
         </div>
         
         <?php if ($error): ?>
-            <div class="error">
-                ⚠️ <?php echo htmlspecialchars($error); ?>
-            </div>
+            <div class="error">⚠️ <?php echo $error; ?></div>
         <?php endif; ?>
         
-        <form method="POST" action="">
+        <form method="POST">
             <div class="form-group">
-                <label for="usuario">👤 Usuario</label>
-                <input type="text" 
-                       id="usuario" 
-                       name="usuario" 
-                       placeholder="Ingresa tu usuario"
-                       value="<?php echo isset($_POST['usuario']) ? htmlspecialchars($_POST['usuario']) : ''; ?>"
-                       required
-                       autofocus>
+                <label>Usuario</label>
+                <input type="text" name="usuario" required autofocus>
             </div>
-            
             <div class="form-group">
-                <label for="password">🔒 Contraseña</label>
-                <input type="password" 
-                       id="password" 
-                       name="password" 
-                       placeholder="Ingresa tu contraseña"
-                       required>
+                <label>Contraseña</label>
+                <input type="password" name="password" required>
             </div>
-            
-            <button type="submit" class="btn-login">
-                🚀 Iniciar Sesión
-            </button>
+            <button type="submit" class="btn-login">Iniciar Sesión</button>
         </form>
     </div>
 </body>
