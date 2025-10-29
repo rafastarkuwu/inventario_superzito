@@ -10,6 +10,24 @@ if (!isset($_SESSION['usuario_id'])) {
 $usuario_id = $_SESSION['usuario_id'];
 $usuario_nombre = $_SESSION['usuario_nombre'];
 
+// API para buscar producto por código (AJAX)
+if (isset($_GET['api']) && $_GET['api'] === 'buscar' && isset($_GET['codigo'])) {
+    header('Content-Type: application/json');
+    
+    $codigo = trim($_GET['codigo']);
+    $stmt = $pdo->prepare("
+        SELECT p.id_producto as id, p.nombre_producto as nombre, p.precio_venta as precio, p.codigo_barras, i.stock_actual as stock 
+        FROM Productos p 
+        INNER JOIN Inventario i ON p.id_inventario = i.id_inventario 
+        WHERE p.codigo_barras = :codigo AND i.stock_actual > 0
+    ");
+    $stmt->execute([':codigo' => $codigo]);
+    $producto = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    echo json_encode($producto ? $producto : ['error' => 'No encontrado']);
+    exit();
+}
+
 // Procesar venta
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
     $carrito = json_decode($_POST['carrito'], true);
@@ -34,7 +52,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
             
             // Insertar detalle y actualizar stock
             foreach ($carrito as $item) {
-                // Detalle_Venta
                 $stmt = $pdo->prepare("INSERT INTO Detalle_Venta (id_venta, id_producto, cantidad, precio_unitario) VALUES (:venta_id, :producto_id, :cantidad, :precio)");
                 $stmt->execute([
                     ':venta_id' => $venta_id,
@@ -43,7 +60,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
                     ':precio' => $item['precio']
                 ]);
                 
-                // Actualizar stock
                 $stmt = $pdo->prepare("UPDATE Inventario SET stock_actual = stock_actual - :cantidad WHERE id_inventario = (SELECT id_inventario FROM Productos WHERE id_producto = :id)");
                 $stmt->execute([
                     ':cantidad' => $item['cantidad'],
@@ -64,20 +80,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
             echo "<script>alert('Error: " . addslashes($e->getMessage()) . "');</script>";
         }
     }
-}
-
-// Buscar producto por código (para escaneo automático)
-$producto_escaneado = null;
-if (isset($_GET['scan']) && !empty($_GET['scan'])) {
-    $codigo = trim($_GET['scan']);
-    $stmt = $pdo->prepare("
-        SELECT p.id_producto as id, p.nombre_producto as nombre, p.precio_venta as precio, p.codigo_barras, i.stock_actual as stock 
-        FROM Productos p 
-        INNER JOIN Inventario i ON p.id_inventario = i.id_inventario 
-        WHERE p.codigo_barras = :codigo AND i.stock_actual > 0
-    ");
-    $stmt->execute([':codigo' => $codigo]);
-    $producto_escaneado = $stmt->fetch(PDO::FETCH_ASSOC);
 }
 ?>
 <!DOCTYPE html>
@@ -237,11 +239,18 @@ if (isset($_GET['scan']) && !empty($_GET['scan'])) {
             font-size: 18px;
         }
         .beep {
-            animation: beep 0.3s;
+            animation: beep 0.2s;
         }
         @keyframes beep {
             0%, 100% { background: white; }
             50% { background: #90EE90; }
+        }
+        .error-beep {
+            animation: error 0.3s;
+        }
+        @keyframes error {
+            0%, 100% { background: white; }
+            50% { background: #ffcccc; }
         }
     </style>
 </head>
@@ -289,25 +298,38 @@ if (isset($_GET['scan']) && !empty($_GET['scan'])) {
         let carrito = [];
         const scanInput = document.getElementById('scanInput');
         
-        // Producto escaneado desde PHP
-        <?php if ($producto_escaneado): ?>
-            agregarProducto(<?php echo json_encode($producto_escaneado); ?>);
-            // Limpiar URL
-            window.history.replaceState({}, document.title, 'vender.php');
-        <?php endif; ?>
-
-        // Capturar escaneo del lector de código de barras
+        // Capturar escaneo
         scanInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
                 const codigo = this.value.trim();
                 
                 if (codigo) {
-                    // Buscar producto por código
-                    window.location.href = 'vender.php?scan=' + encodeURIComponent(codigo);
+                    buscarProducto(codigo);
                 }
             }
         });
+
+        async function buscarProducto(codigo) {
+            try {
+                const response = await fetch('vender.php?api=buscar&codigo=' + encodeURIComponent(codigo));
+                const producto = await response.json();
+                
+                if (producto.error) {
+                    hacerErrorBeep();
+                    alert('⚠️ Producto no encontrado o sin stock');
+                } else {
+                    agregarProducto(producto);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error al buscar producto');
+            }
+            
+            // Limpiar y reenfocar
+            scanInput.value = '';
+            scanInput.focus();
+        }
 
         function agregarProducto(producto) {
             const index = carrito.findIndex(p => p.id === producto.id);
@@ -318,6 +340,7 @@ if (isset($_GET['scan']) && !empty($_GET['scan'])) {
                     carrito[index].cantidad++;
                     hacerBeep();
                 } else {
+                    hacerErrorBeep();
                     alert('⚠️ No hay más stock disponible');
                     return;
                 }
@@ -334,37 +357,18 @@ if (isset($_GET['scan']) && !empty($_GET['scan'])) {
             }
             
             actualizarVista();
-            
-            // Volver a enfocar y limpiar el input
-            setTimeout(() => {
-                scanInput.value = '';
-                scanInput.focus();
-            }, 100);
         }
 
         function hacerBeep() {
-            // Efecto visual de "beep"
-            document.body.classList.add('beep');
-            setTimeout(() => document.body.classList.remove('beep'), 300);
-            
-            // Intentar hacer sonido (solo funciona si el usuario ha interactuado)
-            try {
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                const oscillator = audioContext.createOscillator();
-                const gainNode = audioContext.createGain();
-                
-                oscillator.connect(gainNode);
-                gainNode.connect(audioContext.destination);
-                
-                oscillator.frequency.value = 800;
-                oscillator.type = 'sine';
-                
-                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
-                
-                oscillator.start(audioContext.currentTime);
-                oscillator.stop(audioContext.currentTime + 0.1);
-            } catch(e) {}
+            const box = document.querySelector('.scanner-box');
+            box.classList.add('beep');
+            setTimeout(() => box.classList.remove('beep'), 200);
+        }
+
+        function hacerErrorBeep() {
+            const box = document.querySelector('.scanner-box');
+            box.classList.add('error-beep');
+            setTimeout(() => box.classList.remove('error-beep'), 300);
         }
 
         function eliminarProducto(index) {
@@ -429,9 +433,13 @@ if (isset($_GET['scan']) && !empty($_GET['scan'])) {
             }
         });
 
-        // Mantener foco en el input
+        // Mantener foco
         window.addEventListener('load', () => scanInput.focus());
-        document.addEventListener('click', () => scanInput.focus());
+        setInterval(() => {
+            if (document.activeElement !== scanInput) {
+                scanInput.focus();
+            }
+        }, 1000);
     </script>
 </body>
 </html>
