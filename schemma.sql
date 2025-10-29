@@ -77,16 +77,34 @@ CREATE INDEX idx_codigo_barras ON Productos(codigo_barras);
 CREATE INDEX idx_stock ON Inventario(stock_actual, stock_minimo);
 CREATE INDEX idx_fecha_venta ON Ventas(fecha_venta);
 
--- Insertar datos de ejemplo (ENCARGADO DE PRUEBA)
+-- ============================================
+-- INSERTAR 2 ENCARGADOS Y 2 TRABAJADORES
+-- ============================================
+
+-- ENCARGADO 1: Alfredo Mendoza
 INSERT INTO Persona (nombre, apellido, telefono, email) 
-VALUES ('Admin', 'Sistema', '5551234567', 'admin@superzito.com');
+VALUES ('Alfredo', 'Mendoza', '5551111111', 'alfredo.mendoza@superzito.com');
 
 INSERT INTO Encargado (id_persona, usuario, password) 
-VALUES (1, 'admin', 'admin123');
+VALUES (LAST_INSERT_ID(), 'alfredo', 'alfredo123');
 
--- Insertar un trabajador de prueba
+-- ENCARGADO 2: Daniel Mendoza
 INSERT INTO Persona (nombre, apellido, telefono, email) 
-VALUES ('Juan', 'Pérez', '5559876543', 'juan@superzito.com');
+VALUES ('Daniel', 'Mendoza', '5552222222', 'daniel.mendoza@superzito.com');
+
+INSERT INTO Encargado (id_persona, usuario, password) 
+VALUES (LAST_INSERT_ID(), 'daniel', 'daniel123');
+
+-- TRABAJADOR 1: Luis Mendoza
+INSERT INTO Persona (nombre, apellido, telefono, email) 
+VALUES ('Luis', 'Mendoza', '5553333333', 'luis.mendoza@superzito.com');
 
 INSERT INTO Trabajadores (id_persona, usuario, password) 
-VALUES (2, 'trabajador1', 'trabajador123');
+VALUES (LAST_INSERT_ID(), 'luis', 'luis123');
+
+-- TRABAJADOR 2: Blanca García
+INSERT INTO Persona (nombre, apellido, telefono, email) 
+VALUES ('Blanca', 'García', '5554444444', 'blanca.garcia@superzito.com');
+
+INSERT INTO Trabajadores (id_persona, usuario, password) 
+VALUES (LAST_INSERT_ID(), 'blanca', 'blanca123');
