@@ -31,7 +31,33 @@ try {
         exit();
     }
     
-    $diferencia = floatval($caja['monto_final']) - (floatval($caja['monto_inicial']) + floatval($caja['monto_ventas']));
+    // Obtener retiros de esta caja
+    $stmt = $pdo->prepare("
+        SELECT 
+            COUNT(*) as total_retiros,
+            COALESCE(SUM(monto), 0) as total_dinero_retiros
+        FROM Retiros 
+        WHERE id_caja = ?
+    ");
+    $stmt->execute([$caja_id]);
+    $retiros = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    // Obtener detalle de retiros para mostrar
+    $stmt = $pdo->prepare("
+        SELECT * FROM Retiros 
+        WHERE id_caja = ? 
+        ORDER BY fecha_retiro ASC
+    ");
+    $stmt->execute([$caja_id]);
+    $detalle_retiros = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    $monto_inicial = floatval($caja['monto_inicial']);
+    $monto_ventas = floatval($caja['monto_ventas']);
+    $monto_retiros = floatval($retiros['total_dinero_retiros']);
+    $monto_final = floatval($caja['monto_final']);
+    
+    $monto_esperado = $monto_inicial + $monto_ventas - $monto_retiros;
+    $diferencia = $monto_final - $monto_esperado;
     
 } catch (Exception $e) {
     $error = "Error al cargar el cierre: " . $e->getMessage();
@@ -51,7 +77,7 @@ try {
             padding: 20px;
             min-height: 100vh;
         }
-        .container { max-width: 800px; margin: 0 auto; }
+        .container { max-width: 900px; margin: 0 auto; }
         .header {
             background: white;
             padding: 30px;
@@ -124,6 +150,12 @@ try {
         .linea-dinero:last-child {
             border-bottom: none;
         }
+        .linea-dinero.positivo .valor {
+            color: #4CAF50;
+        }
+        .linea-dinero.negativo .valor {
+            color: #dc3545;
+        }
         .linea-dinero.total {
             background: #667eea;
             color: white;
@@ -131,6 +163,12 @@ try {
             margin-top: 15px;
             font-size: 22px;
             font-weight: bold;
+        }
+        .linea-dinero.esperado {
+            background: #f8f9ff;
+            padding: 15px;
+            border-radius: 8px;
+            border: 2px solid #667eea;
         }
         .diferencia-box {
             padding: 25px;
@@ -157,6 +195,51 @@ try {
         .diferencia-box .valor {
             font-size: 48px;
             font-weight: bold;
+        }
+        .retiros-box {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+        }
+        .retiros-box h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 22px;
+            border-bottom: 2px solid #FF9800;
+            padding-bottom: 10px;
+        }
+        .retiro-item {
+            background: #fff3e0;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            gap: 15px;
+            align-items: center;
+        }
+        .retiro-hora {
+            font-size: 14px;
+            color: #666;
+            font-weight: bold;
+        }
+        .retiro-info {
+            flex: 1;
+        }
+        .retiro-motivo {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 3px;
+        }
+        .retiro-obs {
+            font-size: 12px;
+            color: #666;
+        }
+        .retiro-monto {
+            font-size: 20px;
+            font-weight: bold;
+            color: #dc3545;
         }
         .observaciones-box {
             background: white;
@@ -260,26 +343,56 @@ try {
             
             <div class="linea-dinero">
                 <span>💵 Monto Inicial (Fondo de caja):</span>
-                <strong>$<?php echo number_format($caja['monto_inicial'], 2); ?></strong>
+                <strong class="valor">$<?php echo number_format($monto_inicial, 2); ?></strong>
             </div>
             
-            <div class="linea-dinero">
+            <div class="linea-dinero positivo">
                 <span>🧾 Total de Ventas del Turno:</span>
-                <strong style="color: #4CAF50;">+ $<?php echo number_format($caja['monto_ventas'], 2); ?></strong>
+                <strong class="valor">+ $<?php echo number_format($monto_ventas, 2); ?></strong>
             </div>
             
-            <div class="linea-dinero" style="background: #f8f9ff; padding: 15px; border-radius: 8px;">
+            <?php if ($monto_retiros > 0): ?>
+            <div class="linea-dinero negativo">
+                <span>💸 Total de Retiros (<?php echo $retiros['total_retiros']; ?> retiros):</span>
+                <strong class="valor">- $<?php echo number_format($monto_retiros, 2); ?></strong>
+            </div>
+            <?php endif; ?>
+            
+            <div class="linea-dinero esperado">
                 <span><strong>💎 Dinero que debería haber:</strong></span>
                 <strong style="color: #667eea; font-size: 20px;">
-                    $<?php echo number_format($caja['monto_inicial'] + $caja['monto_ventas'], 2); ?>
+                    $<?php echo number_format($monto_esperado, 2); ?>
                 </strong>
             </div>
             
             <div class="linea-dinero total">
                 <span>💵 Dinero contado en caja:</span>
-                <span>$<?php echo number_format($caja['monto_final'], 2); ?></span>
+                <span>$<?php echo number_format($monto_final, 2); ?></span>
             </div>
         </div>
+
+        <!-- Detalle de retiros si hay -->
+        <?php if (!empty($detalle_retiros)): ?>
+        <div class="retiros-box">
+            <h2>💸 Detalle de Retiros del Turno</h2>
+            <?php foreach ($detalle_retiros as $retiro): ?>
+            <div class="retiro-item">
+                <div class="retiro-hora">
+                    🕐 <?php echo date('H:i', strtotime($retiro['fecha_retiro'])); ?>
+                </div>
+                <div class="retiro-info">
+                    <div class="retiro-motivo"><?php echo htmlspecialchars($retiro['motivo']); ?></div>
+                    <?php if ($retiro['observaciones']): ?>
+                    <div class="retiro-obs"><?php echo htmlspecialchars($retiro['observaciones']); ?></div>
+                    <?php endif; ?>
+                </div>
+                <div class="retiro-monto">
+                    -$<?php echo number_format($retiro['monto'], 2); ?>
+                </div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
 
         <!-- Diferencia -->
         <?php
