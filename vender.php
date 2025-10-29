@@ -11,7 +11,7 @@ $usuario_id = $_SESSION['usuario_id'];
 $usuario_nombre = $_SESSION['usuario_nombre'];
 
 // API para buscar producto por código (AJAX)
-if (isset($_GET['api']) && $_GET['api'] === 'buscar' && isset($_GET['codigo'])) {
+if (isset($_GET['api']) && $_GET['api'] === 'buscar_codigo' && isset($_GET['codigo'])) {
     header('Content-Type: application/json');
     
     $codigo = trim($_GET['codigo']);
@@ -28,6 +28,26 @@ if (isset($_GET['api']) && $_GET['api'] === 'buscar' && isset($_GET['codigo'])) 
     exit();
 }
 
+// API para buscar productos por nombre (AJAX)
+if (isset($_GET['api']) && $_GET['api'] === 'buscar_nombre' && isset($_GET['nombre'])) {
+    header('Content-Type: application/json');
+    
+    $nombre = trim($_GET['nombre']);
+    $termino = '%' . $nombre . '%';
+    $stmt = $pdo->prepare("
+        SELECT p.id_producto as id, p.nombre_producto as nombre, p.precio_venta as precio, p.codigo_barras, i.stock_actual as stock 
+        FROM Productos p 
+        INNER JOIN Inventario i ON p.id_inventario = i.id_inventario 
+        WHERE p.nombre_producto LIKE :termino AND i.stock_actual > 0
+        LIMIT 10
+    ");
+    $stmt->execute([':termino' => $termino]);
+    $productos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    echo json_encode($productos);
+    exit();
+}
+
 // Procesar venta
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
     $carrito = json_decode($_POST['carrito'], true);
@@ -38,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
             
             $total = 0;
             foreach ($carrito as $item) {
-                $total += floatval($item['precio']) * intval($item['cantidad']);
+                $total += floatval($item['subtotal']);
             }
             
             // Insertar venta
@@ -60,11 +80,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
                     ':precio' => $item['precio']
                 ]);
                 
-                $stmt = $pdo->prepare("UPDATE Inventario SET stock_actual = stock_actual - :cantidad WHERE id_inventario = (SELECT id_inventario FROM Productos WHERE id_producto = :id)");
-                $stmt->execute([
-                    ':cantidad' => $item['cantidad'],
-                    ':id' => $item['id']
-                ]);
+                // Solo actualizar stock si es producto por unidad (cantidad entera)
+                if ($item['cantidad'] == intval($item['cantidad'])) {
+                    $stmt = $pdo->prepare("UPDATE Inventario SET stock_actual = stock_actual - :cantidad WHERE id_inventario = (SELECT id_inventario FROM Productos WHERE id_producto = :id)");
+                    $stmt->execute([
+                        ':cantidad' => intval($item['cantidad']),
+                        ':id' => $item['id']
+                    ]);
+                }
             }
             
             $pdo->commit();
@@ -118,29 +141,81 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
         }
         .scanner-box {
             background: white;
-            padding: 30px;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 15px;
+        }
+        .scanner-box h2 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+        .scanner-icon {
+            text-align: center;
+            font-size: 36px;
+            margin-bottom: 10px;
+        }
+        #scanInput {
+            width: 100%;
+            padding: 12px;
+            border: 3px solid #667eea;
+            border-radius: 8px;
+            font-size: 18px;
+            text-align: center;
+            background: #f0f4ff;
+        }
+        .buscar-box {
+            background: white;
+            padding: 25px;
             border-radius: 10px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             margin-bottom: 20px;
         }
-        .scanner-box h2 {
+        .buscar-box h2 {
             color: #333;
-            margin-bottom: 15px;
-            text-align: center;
+            margin-bottom: 10px;
+            font-size: 18px;
         }
-        .scanner-icon {
+        .buscar-icon {
             text-align: center;
-            font-size: 48px;
-            margin-bottom: 15px;
+            font-size: 36px;
+            margin-bottom: 10px;
         }
-        #scanInput {
+        #buscarInput {
             width: 100%;
-            padding: 15px;
-            border: 3px solid #667eea;
+            padding: 12px;
+            border: 3px solid #4CAF50;
             border-radius: 8px;
-            font-size: 20px;
-            text-align: center;
-            background: #f0f4ff;
+            font-size: 18px;
+        }
+        .resultados-busqueda {
+            margin-top: 15px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .resultado-item {
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .resultado-item:hover {
+            background: #e8f5e9;
+            border-color: #4CAF50;
+        }
+        .resultado-nombre {
+            font-weight: bold;
+            color: #333;
+        }
+        .resultado-precio {
+            color: #4CAF50;
+            font-weight: bold;
+            font-size: 18px;
         }
         .carrito-box {
             background: white;
@@ -154,42 +229,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
         .carrito-item {
             display: flex;
             justify-content: space-between;
-            padding: 15px;
+            padding: 12px;
             border-bottom: 1px solid #eee;
             align-items: center;
+            font-size: 14px;
         }
         .item-nombre {
             font-weight: bold;
             color: #333;
             flex: 1;
         }
+        .item-detalle {
+            color: #666;
+            font-size: 12px;
+        }
         .item-cantidad {
             background: #667eea;
             color: white;
-            padding: 8px 15px;
-            border-radius: 20px;
+            padding: 6px 12px;
+            border-radius: 15px;
             font-weight: bold;
-            margin: 0 15px;
-            min-width: 50px;
+            margin: 0 10px;
+            min-width: 80px;
             text-align: center;
-            font-size: 18px;
+            font-size: 14px;
         }
         .item-precio {
-            font-size: 20px;
+            font-size: 18px;
             font-weight: bold;
             color: #667eea;
-            min-width: 120px;
+            min-width: 100px;
             text-align: right;
         }
         .btn-eliminar {
             background: #ff4444;
             color: white;
             border: none;
-            padding: 8px 15px;
+            padding: 6px 12px;
             border-radius: 5px;
             cursor: pointer;
-            margin-left: 10px;
-            font-size: 16px;
+            margin-left: 8px;
+            font-size: 14px;
         }
         .total-box {
             background: #667eea;
@@ -199,14 +279,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
             margin-top: 20px;
             text-align: center;
         }
-        .total-label {
-            font-size: 20px;
-            margin-bottom: 10px;
-        }
-        .total-amount {
-            font-size: 48px;
-            font-weight: bold;
-        }
+        .total-label { font-size: 20px; margin-bottom: 10px; }
+        .total-amount { font-size: 48px; font-weight: bold; }
         .btn-cobrar {
             width: 100%;
             padding: 20px;
@@ -238,19 +312,104 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
             color: #999;
             font-size: 18px;
         }
-        .beep {
-            animation: beep 0.2s;
-        }
+        .beep { animation: beep 0.2s; }
         @keyframes beep {
             0%, 100% { background: white; }
             50% { background: #90EE90; }
         }
-        .error-beep {
-            animation: error 0.3s;
-        }
+        .error-beep { animation: error 0.3s; }
         @keyframes error {
             0%, 100% { background: white; }
             50% { background: #ffcccc; }
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+        }
+        .modal-content {
+            background: white;
+            max-width: 500px;
+            margin: 80px auto;
+            padding: 30px;
+            border-radius: 15px;
+        }
+        .modal-content h2 {
+            color: #4CAF50;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .form-group { margin-bottom: 20px; }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #333;
+            font-size: 16px;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 18px;
+        }
+        .form-group input:focus {
+            border-color: #4CAF50;
+            outline: none;
+        }
+        .opcion-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #ddd;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+        }
+        .tab-btn.active {
+            background: #4CAF50;
+            color: white;
+            border-color: #4CAF50;
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .modal-buttons { display: flex; gap: 10px; margin-top: 25px; }
+        .modal-buttons button {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .btn-confirmar { background: #4CAF50; color: white; }
+        .btn-cancelar { background: #666; color: white; }
+        .precio-info {
+            background: #f0f4ff;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .precio-info .label { font-size: 14px; color: #666; }
+        .precio-info .valor {
+            font-size: 28px;
+            font-weight: bold;
+            color: #667eea;
+            margin-top: 5px;
         }
     </style>
 </head>
@@ -264,16 +423,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
     </div>
 
     <div class="container">
+        <!-- Escáner de códigos -->
         <div class="scanner-box">
             <div class="scanner-icon">🔫</div>
-            <h2>Escanea los códigos de barras</h2>
-            <input type="text" id="scanInput" placeholder="Listo para escanear..." autocomplete="off">
+            <h2>Escanear Código de Barras</h2>
+            <input type="text" id="scanInput" placeholder="Escanea aquí..." autocomplete="off">
         </div>
 
+        <!-- Búsqueda manual para granel -->
+        <div class="buscar-box">
+            <div class="buscar-icon">🔍</div>
+            <h2>Buscar Producto (A granel o manual)</h2>
+            <input type="text" id="buscarInput" placeholder="Escribe el nombre del producto..." autocomplete="off">
+            <div id="resultadosBusqueda" class="resultados-busqueda"></div>
+        </div>
+
+        <!-- Carrito -->
         <div class="carrito-box">
             <h2 style="margin-bottom: 15px;">🛒 PRODUCTOS</h2>
             <div id="listaProductos">
-                <div class="vacio">Escanea productos para comenzar</div>
+                <div class="vacio">Escanea o busca productos para comenzar</div>
             </div>
         </div>
 
@@ -294,69 +463,267 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
         </button>
     </div>
 
+    <!-- Modal para cantidad/precio -->
+    <div class="modal" id="modalGranel">
+        <div class="modal-content">
+            <h2 id="modalTitulo">🏪 Producto a Granel</h2>
+            
+            <div class="precio-info">
+                <div class="label">Precio por kg/unidad:</div>
+                <div class="valor" id="modalPrecioUnitario">$0.00</div>
+            </div>
+
+            <div class="opcion-tabs">
+                <button type="button" class="tab-btn active" onclick="cambiarTab('cantidad')">📦 Por Cantidad</button>
+                <button type="button" class="tab-btn" onclick="cambiarTab('precio')">💵 Por Precio</button>
+            </div>
+
+            <div id="tabCantidad" class="tab-content active">
+                <div class="form-group">
+                    <label>Cantidad (kg o unidades):</label>
+                    <input type="number" id="inputCantidad" step="0.001" min="0.001" placeholder="Ej: 1.5">
+                </div>
+                <div class="precio-info" style="background: #e8f5e9;">
+                    <div class="label">Total a pagar:</div>
+                    <div class="valor" style="color: #4CAF50;" id="totalPorCantidad">$0.00</div>
+                </div>
+            </div>
+
+            <div id="tabPrecio" class="tab-content">
+                <div class="form-group">
+                    <label>¿Cuánto llevó el cliente?</label>
+                    <input type="number" id="inputPrecio" step="0.01" min="0.01" placeholder="Ej: 25.50">
+                </div>
+                <div class="precio-info" style="background: #fff3cd;">
+                    <div class="label">Cantidad aproximada:</div>
+                    <div class="valor" style="color: #ff9800;" id="cantidadPorPrecio">0 kg</div>
+                </div>
+            </div>
+
+            <input type="hidden" id="modalProductoId">
+            <input type="hidden" id="modalProductoNombre">
+            <input type="hidden" id="modalProductoPrecio">
+
+            <div class="modal-buttons">
+                <button type="button" class="btn-confirmar" onclick="confirmarGranel()">✅ Agregar</button>
+                <button type="button" class="btn-cancelar" onclick="cerrarModal()">❌ Cancelar</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let carrito = [];
         const scanInput = document.getElementById('scanInput');
+        const buscarInput = document.getElementById('buscarInput');
+        let tabActual = 'cantidad';
         
         // Capturar escaneo
         scanInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
                 const codigo = this.value.trim();
-                
                 if (codigo) {
-                    buscarProducto(codigo);
+                    buscarPorCodigo(codigo);
                 }
             }
         });
 
-        async function buscarProducto(codigo) {
+        // Buscar por nombre mientras escribe
+        let timeoutBusqueda;
+        buscarInput.addEventListener('input', function() {
+            clearTimeout(timeoutBusqueda);
+            const termino = this.value.trim();
+            
+            if (termino.length >= 2) {
+                timeoutBusqueda = setTimeout(() => buscarPorNombre(termino), 300);
+            } else {
+                document.getElementById('resultadosBusqueda').innerHTML = '';
+            }
+        });
+
+        async function buscarPorCodigo(codigo) {
             try {
-                const response = await fetch('vender.php?api=buscar&codigo=' + encodeURIComponent(codigo));
+                const response = await fetch('vender.php?api=buscar_codigo&codigo=' + encodeURIComponent(codigo));
                 const producto = await response.json();
                 
                 if (producto.error) {
                     hacerErrorBeep();
-                    alert('⚠️ Producto no encontrado o sin stock');
+                    alert('⚠️ Producto no encontrado');
                 } else {
-                    agregarProducto(producto);
+                    agregarProductoUnitario(producto);
                 }
             } catch (error) {
                 console.error('Error:', error);
-                alert('Error al buscar producto');
             }
             
-            // Limpiar y reenfocar
             scanInput.value = '';
             scanInput.focus();
         }
 
-        function agregarProducto(producto) {
-            const index = carrito.findIndex(p => p.id === producto.id);
+        async function buscarPorNombre(termino) {
+            try {
+                const response = await fetch('vender.php?api=buscar_nombre&nombre=' + encodeURIComponent(termino));
+                const productos = await response.json();
+                
+                mostrarResultados(productos);
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        function mostrarResultados(productos) {
+            const contenedor = document.getElementById('resultadosBusqueda');
             
-            if (index !== -1) {
-                // Ya existe, aumentar cantidad
-                if (carrito[index].cantidad < producto.stock) {
-                    carrito[index].cantidad++;
-                    hacerBeep();
+            if (productos.length === 0) {
+                contenedor.innerHTML = '<div style="padding:15px;text-align:center;color:#999;">No se encontraron productos</div>';
+                return;
+            }
+            
+            let html = '';
+            productos.forEach(prod => {
+                html += `
+                    <div class="resultado-item" onclick='seleccionarProducto(${JSON.stringify(prod)})'>
+                        <div>
+                            <div class="resultado-nombre">${prod.nombre}</div>
+                            <div style="font-size:12px;color:#666;">Stock: ${prod.stock}</div>
+                        </div>
+                        <div class="resultado-precio">$${parseFloat(prod.precio).toFixed(2)}/kg</div>
+                    </div>
+                `;
+            });
+            
+            contenedor.innerHTML = html;
+        }
+
+        function seleccionarProducto(producto) {
+            abrirModalGranel(producto);
+            document.getElementById('resultadosBusqueda').innerHTML = '';
+            buscarInput.value = '';
+        }
+
+        function abrirModalGranel(producto) {
+            document.getElementById('modalProductoId').value = producto.id;
+            document.getElementById('modalProductoNombre').value = producto.nombre;
+            document.getElementById('modalProductoPrecio').value = producto.precio;
+            document.getElementById('modalPrecioUnitario').textContent = '$' + parseFloat(producto.precio).toFixed(2);
+            document.getElementById('modalTitulo').textContent = producto.nombre;
+            
+            // Limpiar inputs
+            document.getElementById('inputCantidad').value = '';
+            document.getElementById('inputPrecio').value = '';
+            document.getElementById('totalPorCantidad').textContent = '$0.00';
+            document.getElementById('cantidadPorPrecio').textContent = '0 kg';
+            
+            // Mostrar modal
+            document.getElementById('modalGranel').style.display = 'block';
+            
+            setTimeout(() => {
+                if (tabActual === 'cantidad') {
+                    document.getElementById('inputCantidad').focus();
                 } else {
-                    hacerErrorBeep();
-                    alert('⚠️ No hay más stock disponible');
+                    document.getElementById('inputPrecio').focus();
+                }
+            }, 100);
+        }
+
+        function cambiarTab(tab) {
+            tabActual = tab;
+            
+            // Cambiar botones
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Cambiar contenido
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
+            
+            // Focus en input correspondiente
+            if (tab === 'cantidad') {
+                document.getElementById('inputCantidad').focus();
+            } else {
+                document.getElementById('inputPrecio').focus();
+            }
+        }
+
+        // Calcular total mientras escribe cantidad
+        document.getElementById('inputCantidad').addEventListener('input', function() {
+            const cantidad = parseFloat(this.value) || 0;
+            const precio = parseFloat(document.getElementById('modalProductoPrecio').value);
+            const total = cantidad * precio;
+            document.getElementById('totalPorCantidad').textContent = '$' + total.toFixed(2);
+        });
+
+        // Calcular cantidad mientras escribe precio
+        document.getElementById('inputPrecio').addEventListener('input', function() {
+            const precioTotal = parseFloat(this.value) || 0;
+            const precioUnitario = parseFloat(document.getElementById('modalProductoPrecio').value);
+            const cantidad = precioTotal / precioUnitario;
+            document.getElementById('cantidadPorPrecio').textContent = cantidad.toFixed(3) + ' kg';
+        });
+
+        function confirmarGranel() {
+            const id = parseInt(document.getElementById('modalProductoId').value);
+            const nombre = document.getElementById('modalProductoNombre').value;
+            const precioUnitario = parseFloat(document.getElementById('modalProductoPrecio').value);
+            
+            let cantidad, subtotal;
+            
+            if (tabActual === 'cantidad') {
+                cantidad = parseFloat(document.getElementById('inputCantidad').value);
+                if (!cantidad || cantidad <= 0) {
+                    alert('Por favor ingresa una cantidad válida');
                     return;
                 }
+                subtotal = cantidad * precioUnitario;
             } else {
-                // Nuevo producto
+                subtotal = parseFloat(document.getElementById('inputPrecio').value);
+                if (!subtotal || subtotal <= 0) {
+                    alert('Por favor ingresa un precio válido');
+                    return;
+                }
+                cantidad = subtotal / precioUnitario;
+            }
+            
+            // Agregar al carrito
+            carrito.push({
+                id: id,
+                nombre: nombre,
+                precio: precioUnitario,
+                cantidad: cantidad,
+                subtotal: subtotal,
+                tipo: 'granel'
+            });
+            
+            hacerBeep();
+            cerrarModal();
+            actualizarVista();
+        }
+
+        function agregarProductoUnitario(producto) {
+            const index = carrito.findIndex(p => p.id === producto.id && p.tipo !== 'granel');
+            
+            if (index !== -1) {
+                carrito[index].cantidad++;
+                carrito[index].subtotal = carrito[index].cantidad * carrito[index].precio;
+                hacerBeep();
+            } else {
                 carrito.push({
                     id: producto.id,
                     nombre: producto.nombre,
                     precio: parseFloat(producto.precio),
                     cantidad: 1,
-                    stock: producto.stock
+                    subtotal: parseFloat(producto.precio),
+                    tipo: 'unitario'
                 });
                 hacerBeep();
             }
             
             actualizarVista();
+        }
+
+        function cerrarModal() {
+            document.getElementById('modalGranel').style.display = 'none';
+            scanInput.focus();
         }
 
         function hacerBeep() {
@@ -384,7 +751,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
             const btnLimpiar = document.getElementById('btnLimpiar');
             
             if (carrito.length === 0) {
-                lista.innerHTML = '<div class="vacio">Escanea productos para comenzar</div>';
+                lista.innerHTML = '<div class="vacio">Escanea o busca productos para comenzar</div>';
                 totalBox.style.display = 'none';
                 btnCobrar.style.display = 'none';
                 btnLimpiar.style.display = 'none';
@@ -395,14 +762,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
             let total = 0;
             
             carrito.forEach((item, i) => {
-                const subtotal = item.precio * item.cantidad;
-                total += subtotal;
+                total += item.subtotal;
+                
+                const detalle = item.tipo === 'granel' 
+                    ? `${item.cantidad.toFixed(3)} kg × $${item.precio.toFixed(2)}`
+                    : `× ${item.cantidad}`;
                 
                 html += `
                     <div class="carrito-item">
-                        <div class="item-nombre">${item.nombre}</div>
-                        <div class="item-cantidad">× ${item.cantidad}</div>
-                        <div class="item-precio">$${subtotal.toFixed(2)}</div>
+                        <div style="flex:1;">
+                            <div class="item-nombre">${item.nombre}</div>
+                            <div class="item-detalle">${detalle}</div>
+                        </div>
+                        <div class="item-precio">$${item.subtotal.toFixed(2)}</div>
                         <button class="btn-eliminar" onclick="eliminarProducto(${i})">✕</button>
                     </div>
                 `;
@@ -421,25 +793,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
                 carrito = [];
                 actualizarVista();
                 scanInput.value = '';
+                buscarInput.value = '';
+                document.getElementById('resultadosBusqueda').innerHTML = '';
                 scanInput.focus();
             }
         }
 
         // Validar antes de cobrar
         document.getElementById('formVenta').addEventListener('submit', function(e) {
-            const total = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
+            const total = carrito.reduce((sum, item) => sum + item.subtotal, 0);
             if (!confirm('💵 COBRAR $' + total.toFixed(2) + '?')) {
                 e.preventDefault();
             }
         });
 
+        // Cerrar modal con ESC
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                cerrarModal();
+            }
+        });
+
         // Mantener foco
         window.addEventListener('load', () => scanInput.focus());
-        setInterval(() => {
-            if (document.activeElement !== scanInput) {
-                scanInput.focus();
-            }
-        }, 1000);
     </script>
 </body>
 </html>
