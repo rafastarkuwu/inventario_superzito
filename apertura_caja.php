@@ -39,8 +39,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['abrir_caja'])) {
     } else {
         try {
             $stmt = $pdo->prepare("
-                INSERT INTO Cajas (id_encargado, fecha_apertura, monto_inicial, estado) 
-                VALUES (?, NOW(), ?, 'abierta')
+                INSERT INTO Cajas (id_caja, id_encargado, fecha_apertura, monto_inicial, estado) 
+                VALUES (NULL, ?, NOW(), ?, 'abierta')
             ");
             $stmt->execute([$usuario_id, $monto_inicial]);
             
