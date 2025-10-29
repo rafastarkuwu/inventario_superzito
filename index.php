@@ -121,9 +121,11 @@ try {
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
             text-align: center;
             transition: transform 0.2s;
+            color: inherit;
         }
         .stat-card:hover {
             transform: translateY(-5px);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.15);
         }
         .stat-icon {
             font-size: 48px;
@@ -284,13 +286,13 @@ try {
                 <div class="stat-label">Total de Productos</div>
             </div>
             
-            <div class="stat-card">
+            <a href="stock_bajo.php" class="stat-card" style="text-decoration: none; cursor: pointer;" title="Ver productos con stock bajo">
                 <div class="stat-icon">⚠️</div>
                 <div class="stat-value" style="color: <?php echo $productos_stock_bajo > 0 ? '#ff4444' : '#4CAF50'; ?>;">
                     <?php echo $productos_stock_bajo; ?>
                 </div>
                 <div class="stat-label">Productos con Stock Bajo</div>
-            </div>
+            </a>
             
             <!-- Ventas de hoy - CENSURADO -->
             <div class="ventas-card" id="ventasHoy" onclick="revelarVentas('hoy')">
