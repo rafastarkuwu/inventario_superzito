@@ -15,11 +15,11 @@ if ($venta_id <= 0) {
 }
 
 try {
-    // Primero intentar obtener la venta con el esquema que usa cierre_caja.php
+    // Obtener información de la venta
     $stmt = $pdo->prepare("
-        SELECT v.id as id_venta, v.fecha_venta, v.total, v.usuario_nombre as vendedor
-        FROM Ventas v
-        WHERE v.id_venta = ?
+        SELECT id_venta, fecha_venta, total, id_encargado
+        FROM Ventas
+        WHERE id_venta = ?
     ");
     $stmt->execute([$venta_id]);
     $venta = $stmt->fetch(PDO::FETCH_ASSOC);
