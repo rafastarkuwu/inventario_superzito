@@ -6,3 +6,8 @@ cmds = ['echo "PHP y extensiones MySQL instaladas correctamente"']
 
 [start]
 cmd = 'php -S 0.0.0.0:$PORT -t .'
+
+
+
+
+
