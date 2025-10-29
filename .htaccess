@@ -1,0 +1,18 @@
+# Habilitar reescritura de URLs
+RewriteEngine On
+
+# Redirigir al login si acceden a la raíz
+RewriteRule ^$ login.php [L]
+
+# Seguridad básica
+<FilesMatch "\.(sql|env|json)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# PHP settings
+php_flag display_errors Off
+php_value upload_max_filesize 10M
+php_value post_max_size 10M
+php_value max_execution_time 300
+php_value max_input_time 300
