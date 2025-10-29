@@ -15,11 +15,13 @@ if ($venta_id <= 0) {
 }
 
 try {
-    // Obtener información de la venta
+    // Obtener información de la venta CON el nombre del vendedor
     $stmt = $pdo->prepare("
-        SELECT id_venta, fecha_venta, total, id_encargado
-        FROM Ventas
-        WHERE id_venta = ?
+        SELECT v.id_venta, v.fecha_venta, v.total, v.id_encargado,
+               e.nombre as vendedor
+        FROM Ventas v
+        LEFT JOIN Encargado e ON v.id_encargado = e.id_encargado
+        WHERE v.id_venta = ?
     ");
     $stmt->execute([$venta_id]);
     $venta = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -29,15 +31,15 @@ try {
         exit();
     }
     
-    // Obtener detalle de productos usando el esquema correcto
+    // Obtener detalle de productos - NOMBRE CORRECTO DE LA TABLA
     $stmt = $pdo->prepare("
         SELECT dv.cantidad, dv.precio_unitario, 
-               (dv.cantidad * dv.precio_unitario) as subtotal,
+               dv.subtotal,
                p.nombre_producto, p.codigo_barras
-        FROM Detalle_Venta dv
+        FROM Venta_Detalle dv
         LEFT JOIN Productos p ON dv.id_producto = p.id_producto
         WHERE dv.id_venta = ?
-        ORDER BY dv.id_detalle_venta
+        ORDER BY dv.id_detalle
     ");
     $stmt->execute([$venta_id]);
     $productos = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -230,7 +232,7 @@ try {
                     <div class="info-item">
                         <div class="info-label">👤 VENDEDOR</div>
                         <div class="info-value">
-                            <?php echo htmlspecialchars($venta['vendedor']); ?>
+                            <?php echo htmlspecialchars($venta['vendedor'] ?? 'Sin asignar'); ?>
                         </div>
                     </div>
                 </div>
