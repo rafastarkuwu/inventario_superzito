@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
                 $total += floatval($item['precio']) * intval($item['cantidad']);
             }
             
-            // Insertar en tabla Ventas
+            // Insertar venta
             $stmt = $pdo->prepare("INSERT INTO Ventas (id_encargado, fecha_venta, total) VALUES (:id_encargado, NOW(), :total)");
             $stmt->execute([
                 ':id_encargado' => $usuario_id,
@@ -32,9 +32,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
             
             $venta_id = $pdo->lastInsertId();
             
-            // Insertar detalle y actualizar inventario
+            // Insertar detalle y actualizar stock
             foreach ($carrito as $item) {
-                // Insertar en Detalle_Venta
+                // Detalle_Venta
                 $stmt = $pdo->prepare("INSERT INTO Detalle_Venta (id_venta, id_producto, cantidad, precio_unitario) VALUES (:venta_id, :producto_id, :cantidad, :precio)");
                 $stmt->execute([
                     ':venta_id' => $venta_id,
@@ -43,8 +43,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
                     ':precio' => $item['precio']
                 ]);
                 
-                // Actualizar stock en Inventario
-                $stmt = $pdo->prepare("UPDATE Inventario SET stock_actual = stock_actual - :cantidad WHERE id_producto = :id");
+                // Actualizar stock
+                $stmt = $pdo->prepare("UPDATE Inventario SET stock_actual = stock_actual - :cantidad WHERE id_inventario = (SELECT id_inventario FROM Productos WHERE id_producto = :id)");
                 $stmt->execute([
                     ':cantidad' => $item['cantidad'],
                     ':id' => $item['id']
@@ -54,29 +54,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
             $pdo->commit();
             
             echo "<script>
-                alert('✅ VENTA COBRADA\\nTotal: $" . number_format($total, 2) . "\\nVenta #" . $venta_id . "');
+                alert('✅ VENTA COBRADA\\n\\nTotal: $" . number_format($total, 2) . "\\nVenta #" . $venta_id . "');
                 window.location.href = 'vender.php';
             </script>";
             exit();
             
         } catch (Exception $e) {
             $pdo->rollBack();
-            $error = "Error: " . $e->getMessage();
+            echo "<script>alert('Error: " . addslashes($e->getMessage()) . "');</script>";
         }
     }
 }
 
-// Buscar producto por código
-$producto = null;
-if (isset($_GET['codigo']) && !empty($_GET['codigo'])) {
+// Buscar producto por código (para escaneo automático)
+$producto_escaneado = null;
+if (isset($_GET['scan']) && !empty($_GET['scan'])) {
+    $codigo = trim($_GET['scan']);
     $stmt = $pdo->prepare("
-        SELECT p.*, i.stock_actual as stock 
+        SELECT p.id_producto as id, p.nombre_producto as nombre, p.precio_venta as precio, p.codigo_barras, i.stock_actual as stock 
         FROM Productos p 
         INNER JOIN Inventario i ON p.id_inventario = i.id_inventario 
         WHERE p.codigo_barras = :codigo AND i.stock_actual > 0
     ");
-    $stmt->execute([':codigo' => $_GET['codigo']]);
-    $producto = $stmt->fetch(PDO::FETCH_ASSOC);
+    $stmt->execute([':codigo' => $codigo]);
+    $producto_escaneado = $stmt->fetch(PDO::FETCH_ASSOC);
 }
 ?>
 <!DOCTYPE html>
@@ -84,7 +85,7 @@ if (isset($_GET['codigo']) && !empty($_GET['codigo'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Caja Registradora - SuperZito</title>
+    <title>Caja Registradora</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -99,9 +100,7 @@ if (isset($_GET['codigo']) && !empty($_GET['codigo'])) {
             justify-content: space-between;
             align-items: center;
         }
-        .header h1 {
-            font-size: 24px;
-        }
+        .header h1 { font-size: 24px; }
         .btn-volver {
             background: white;
             color: #667eea;
@@ -125,27 +124,21 @@ if (isset($_GET['codigo']) && !empty($_GET['codigo'])) {
         .scanner-box h2 {
             color: #333;
             margin-bottom: 15px;
+            text-align: center;
         }
-        .scanner-input {
-            display: flex;
-            gap: 10px;
+        .scanner-icon {
+            text-align: center;
+            font-size: 48px;
+            margin-bottom: 15px;
         }
-        .scanner-input input {
-            flex: 1;
+        #scanInput {
+            width: 100%;
             padding: 15px;
             border: 3px solid #667eea;
             border-radius: 8px;
-            font-size: 18px;
-        }
-        .scanner-input button {
-            padding: 15px 30px;
-            background: #667eea;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            cursor: pointer;
-            font-weight: bold;
+            font-size: 20px;
+            text-align: center;
+            background: #f0f4ff;
         }
         .carrito-box {
             background: white;
@@ -153,6 +146,8 @@ if (isset($_GET['codigo']) && !empty($_GET['codigo'])) {
             border-radius: 10px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             min-height: 300px;
+            max-height: 500px;
+            overflow-y: auto;
         }
         .carrito-item {
             display: flex;
@@ -161,42 +156,27 @@ if (isset($_GET['codigo']) && !empty($_GET['codigo'])) {
             border-bottom: 1px solid #eee;
             align-items: center;
         }
-        .carrito-item:last-child {
-            border-bottom: none;
-        }
         .item-nombre {
             font-weight: bold;
             color: #333;
             flex: 1;
         }
         .item-cantidad {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin: 0 20px;
-        }
-        .btn-cant {
-            width: 35px;
-            height: 35px;
-            border: none;
             background: #667eea;
             color: white;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 18px;
+            padding: 8px 15px;
+            border-radius: 20px;
             font-weight: bold;
-        }
-        .cant-display {
-            font-size: 20px;
-            font-weight: bold;
-            min-width: 40px;
+            margin: 0 15px;
+            min-width: 50px;
             text-align: center;
+            font-size: 18px;
         }
         .item-precio {
-            font-size: 18px;
+            font-size: 20px;
             font-weight: bold;
             color: #667eea;
-            min-width: 100px;
+            min-width: 120px;
             text-align: right;
         }
         .btn-eliminar {
@@ -206,7 +186,8 @@ if (isset($_GET['codigo']) && !empty($_GET['codigo'])) {
             padding: 8px 15px;
             border-radius: 5px;
             cursor: pointer;
-            margin-left: 15px;
+            margin-left: 10px;
+            font-size: 16px;
         }
         .total-box {
             background: #667eea;
@@ -236,9 +217,7 @@ if (isset($_GET['codigo']) && !empty($_GET['codigo'])) {
             cursor: pointer;
             margin-top: 20px;
         }
-        .btn-cobrar:hover {
-            background: #45a049;
-        }
+        .btn-cobrar:hover { background: #45a049; }
         .btn-limpiar {
             width: 100%;
             padding: 15px;
@@ -257,6 +236,13 @@ if (isset($_GET['codigo']) && !empty($_GET['codigo'])) {
             color: #999;
             font-size: 18px;
         }
+        .beep {
+            animation: beep 0.3s;
+        }
+        @keyframes beep {
+            0%, 100% { background: white; }
+            50% { background: #90EE90; }
+        }
     </style>
 </head>
 <body>
@@ -270,24 +256,15 @@ if (isset($_GET['codigo']) && !empty($_GET['codigo'])) {
 
     <div class="container">
         <div class="scanner-box">
-            <h2>🔫 Escanear Código de Barras</h2>
-            <form method="GET" class="scanner-input" id="formScanner">
-                <input type="text" 
-                       name="codigo" 
-                       id="codigoInput"
-                       placeholder="Escanea o ingresa el código de barras..."
-                       autofocus
-                       autocomplete="off">
-                <button type="submit">AGREGAR</button>
-            </form>
+            <div class="scanner-icon">🔫</div>
+            <h2>Escanea los códigos de barras</h2>
+            <input type="text" id="scanInput" placeholder="Listo para escanear..." autocomplete="off">
         </div>
 
         <div class="carrito-box">
-            <h2>🛒 PRODUCTOS</h2>
+            <h2 style="margin-bottom: 15px;">🛒 PRODUCTOS</h2>
             <div id="listaProductos">
-                <div class="vacio">
-                    Escanea productos para agregarlos
-                </div>
+                <div class="vacio">Escanea productos para comenzar</div>
             </div>
         </div>
 
@@ -310,54 +287,90 @@ if (isset($_GET['codigo']) && !empty($_GET['codigo'])) {
 
     <script>
         let carrito = [];
-
-        <?php if ($producto): ?>
-            // Agregar producto escaneado automáticamente
-            agregarProducto(<?php echo json_encode($producto); ?>);
+        const scanInput = document.getElementById('scanInput');
+        
+        // Producto escaneado desde PHP
+        <?php if ($producto_escaneado): ?>
+            agregarProducto(<?php echo json_encode($producto_escaneado); ?>);
             // Limpiar URL
             window.history.replaceState({}, document.title, 'vender.php');
-            // Volver a poner foco en el scanner
-            setTimeout(() => document.getElementById('codigoInput').focus(), 100);
         <?php endif; ?>
 
+        // Capturar escaneo del lector de código de barras
+        scanInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const codigo = this.value.trim();
+                
+                if (codigo) {
+                    // Buscar producto por código
+                    window.location.href = 'vender.php?scan=' + encodeURIComponent(codigo);
+                }
+            }
+        });
+
         function agregarProducto(producto) {
-            const index = carrito.findIndex(p => p.id === producto.id_producto);
+            const index = carrito.findIndex(p => p.id === producto.id);
             
             if (index !== -1) {
+                // Ya existe, aumentar cantidad
                 if (carrito[index].cantidad < producto.stock) {
                     carrito[index].cantidad++;
+                    hacerBeep();
                 } else {
                     alert('⚠️ No hay más stock disponible');
                     return;
                 }
             } else {
+                // Nuevo producto
                 carrito.push({
-                    id: producto.id_producto,
-                    nombre: producto.nombre_producto,
-                    precio: parseFloat(producto.precio_venta),
+                    id: producto.id,
+                    nombre: producto.nombre,
+                    precio: parseFloat(producto.precio),
                     cantidad: 1,
                     stock: producto.stock
                 });
+                hacerBeep();
             }
             
             actualizarVista();
+            
+            // Volver a enfocar y limpiar el input
+            setTimeout(() => {
+                scanInput.value = '';
+                scanInput.focus();
+            }, 100);
         }
 
-        function cambiarCantidad(index, delta) {
-            const item = carrito[index];
-            const nueva = item.cantidad + delta;
+        function hacerBeep() {
+            // Efecto visual de "beep"
+            document.body.classList.add('beep');
+            setTimeout(() => document.body.classList.remove('beep'), 300);
             
-            if (nueva > 0 && nueva <= item.stock) {
-                carrito[index].cantidad = nueva;
-                actualizarVista();
-            } else if (nueva > item.stock) {
-                alert('⚠️ No hay suficiente stock');
-            }
+            // Intentar hacer sonido (solo funciona si el usuario ha interactuado)
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.value = 800;
+                oscillator.type = 'sine';
+                
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.1);
+            } catch(e) {}
         }
 
         function eliminarProducto(index) {
             carrito.splice(index, 1);
             actualizarVista();
+            scanInput.focus();
         }
 
         function actualizarVista() {
@@ -367,7 +380,7 @@ if (isset($_GET['codigo']) && !empty($_GET['codigo'])) {
             const btnLimpiar = document.getElementById('btnLimpiar');
             
             if (carrito.length === 0) {
-                lista.innerHTML = '<div class="vacio">Escanea productos para agregarlos</div>';
+                lista.innerHTML = '<div class="vacio">Escanea productos para comenzar</div>';
                 totalBox.style.display = 'none';
                 btnCobrar.style.display = 'none';
                 btnLimpiar.style.display = 'none';
@@ -384,11 +397,7 @@ if (isset($_GET['codigo']) && !empty($_GET['codigo'])) {
                 html += `
                     <div class="carrito-item">
                         <div class="item-nombre">${item.nombre}</div>
-                        <div class="item-cantidad">
-                            <button class="btn-cant" onclick="cambiarCantidad(${i}, -1)">-</button>
-                            <span class="cant-display">${item.cantidad}</span>
-                            <button class="btn-cant" onclick="cambiarCantidad(${i}, 1)">+</button>
-                        </div>
+                        <div class="item-cantidad">× ${item.cantidad}</div>
                         <div class="item-precio">$${subtotal.toFixed(2)}</div>
                         <button class="btn-eliminar" onclick="eliminarProducto(${i})">✕</button>
                     </div>
@@ -407,8 +416,8 @@ if (isset($_GET['codigo']) && !empty($_GET['codigo'])) {
             if (confirm('¿Limpiar toda la venta?')) {
                 carrito = [];
                 actualizarVista();
-                document.getElementById('codigoInput').value = '';
-                document.getElementById('codigoInput').focus();
+                scanInput.value = '';
+                scanInput.focus();
             }
         }
 
@@ -420,13 +429,9 @@ if (isset($_GET['codigo']) && !empty($_GET['codigo'])) {
             }
         });
 
-        // Auto-focus en scanner después de agregar
-        document.getElementById('formScanner').addEventListener('submit', function() {
-            setTimeout(() => {
-                document.getElementById('codigoInput').value = '';
-                document.getElementById('codigoInput').focus();
-            }, 500);
-        });
+        // Mantener foco en el input
+        window.addEventListener('load', () => scanInput.focus());
+        document.addEventListener('click', () => scanInput.focus());
     </script>
 </body>
 </html>
