@@ -20,22 +20,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['agregar_stock'])) {
         $tipo_mensaje = 'error';
     } else {
         try {
-            $pdo->beginTransaction();
-            
             // Obtener id_inventario del producto
-            $stmt = $pdo->prepare("SELECT id_inventario FROM Productos WHERE id_producto = :id");
-            $stmt->execute([':id' => $producto_id]);
+            $stmt = $pdo->prepare("SELECT id_inventario FROM Productos WHERE id_producto = ?");
+            $stmt->execute([$producto_id]);
             $producto = $stmt->fetch(PDO::FETCH_ASSOC);
             
             if ($producto) {
-                // Actualizar stock en Inventario
-                $stmt = $pdo->prepare("UPDATE Inventario SET stock_actual = stock_actual + :cantidad WHERE id_inventario = :id_inv");
-                $stmt->execute([
-                    ':cantidad' => $cantidad,
-                    ':id_inv' => $producto['id_inventario']
-                ]);
+                // Actualizar stock
+                $stmt = $pdo->prepare("UPDATE Inventario SET stock_actual = stock_actual + ? WHERE id_inventario = ?");
+                $stmt->execute([$cantidad, $producto['id_inventario']]);
                 
-                $pdo->commit();
                 $mensaje = "✅ Stock actualizado: +$cantidad unidades";
                 $tipo_mensaje = 'success';
             } else {
@@ -44,7 +38,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['agregar_stock'])) {
             }
             
         } catch (Exception $e) {
-            $pdo->rollBack();
             $mensaje = "Error: " . $e->getMessage();
             $tipo_mensaje = 'error';
         }
@@ -62,11 +55,11 @@ if (isset($_GET['buscar'])) {
             SELECT p.id_producto, p.nombre_producto, p.codigo_barras, p.precio_venta, i.stock_actual, i.stock_minimo
             FROM Productos p
             INNER JOIN Inventario i ON p.id_inventario = i.id_inventario
-            WHERE p.nombre_producto LIKE :termino OR p.codigo_barras LIKE :termino
+            WHERE p.nombre_producto LIKE ? OR p.codigo_barras LIKE ?
             ORDER BY p.nombre_producto
             LIMIT 50
         ");
-        $stmt->execute([':termino' => $termino]);
+        $stmt->execute([$termino, $termino]);
         $productos = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }
@@ -85,10 +78,7 @@ if (isset($_GET['buscar'])) {
             padding: 20px;
             min-height: 100vh;
         }
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-        }
+        .container { max-width: 1000px; margin: 0 auto; }
         .header {
             background: white;
             padding: 20px;
@@ -98,10 +88,7 @@ if (isset($_GET['buscar'])) {
             justify-content: space-between;
             align-items: center;
         }
-        .header h1 {
-            color: #4CAF50;
-            font-size: 28px;
-        }
+        .header h1 { color: #4CAF50; font-size: 28px; }
         .btn-volver {
             background: #666;
             color: white;
@@ -114,28 +101,16 @@ if (isset($_GET['buscar'])) {
             border-radius: 8px;
             margin-bottom: 20px;
         }
-        .mensaje.success {
-            background: #d4edda;
-            color: #155724;
-        }
-        .mensaje.error {
-            background: #f8d7da;
-            color: #721c24;
-        }
+        .mensaje.success { background: #d4edda; color: #155724; }
+        .mensaje.error { background: #f8d7da; color: #721c24; }
         .busqueda-box {
             background: white;
             padding: 25px;
             border-radius: 10px;
             margin-bottom: 20px;
         }
-        .busqueda-box h2 {
-            margin-bottom: 15px;
-            color: #333;
-        }
-        .busqueda-form {
-            display: flex;
-            gap: 10px;
-        }
+        .busqueda-box h2 { margin-bottom: 15px; color: #333; }
+        .busqueda-form { display: flex; gap: 10px; }
         .busqueda-form input {
             flex: 1;
             padding: 12px;
@@ -153,11 +128,7 @@ if (isset($_GET['buscar'])) {
             cursor: pointer;
             font-weight: bold;
         }
-        .productos-box {
-            background: white;
-            padding: 25px;
-            border-radius: 10px;
-        }
+        .productos-box { background: white; padding: 25px; border-radius: 10px; }
         .producto-item {
             display: grid;
             grid-template-columns: 2fr 1fr 1fr 150px;
@@ -168,33 +139,17 @@ if (isset($_GET['buscar'])) {
             margin-bottom: 15px;
             align-items: center;
         }
-        .producto-item:hover {
-            border-color: #4CAF50;
-            background: #f0fff4;
-        }
-        .producto-info h3 {
-            color: #333;
-            margin-bottom: 5px;
-        }
-        .producto-info p {
-            color: #666;
-            font-size: 14px;
-        }
-        .stock-info {
-            text-align: center;
-        }
+        .producto-item:hover { border-color: #4CAF50; background: #f0fff4; }
+        .producto-info h3 { color: #333; margin-bottom: 5px; }
+        .producto-info p { color: #666; font-size: 14px; }
+        .stock-info { text-align: center; }
         .stock-actual {
             font-size: 24px;
             font-weight: bold;
             color: #4CAF50;
         }
-        .stock-label {
-            font-size: 12px;
-            color: #666;
-        }
-        .stock-bajo {
-            color: #ff4444 !important;
-        }
+        .stock-label { font-size: 12px; color: #666; }
+        .stock-bajo { color: #ff4444 !important; }
         .precio-info {
             text-align: center;
             font-size: 20px;
@@ -211,9 +166,7 @@ if (isset($_GET['buscar'])) {
             font-size: 16px;
             font-weight: bold;
         }
-        .btn-agregar-stock:hover {
-            background: #45a049;
-        }
+        .btn-agregar-stock:hover { background: #45a049; }
         .vacio {
             text-align: center;
             padding: 60px;
@@ -237,13 +190,8 @@ if (isset($_GET['buscar'])) {
             padding: 30px;
             border-radius: 10px;
         }
-        .modal-content h2 {
-            color: #4CAF50;
-            margin-bottom: 20px;
-        }
-        .form-group {
-            margin-bottom: 20px;
-        }
+        .modal-content h2 { color: #4CAF50; margin-bottom: 20px; }
+        .form-group { margin-bottom: 20px; }
         .form-group label {
             display: block;
             margin-bottom: 5px;
@@ -257,10 +205,7 @@ if (isset($_GET['buscar'])) {
             border-radius: 5px;
             font-size: 16px;
         }
-        .modal-buttons {
-            display: flex;
-            gap: 10px;
-        }
+        .modal-buttons { display: flex; gap: 10px; }
         .modal-buttons button {
             flex: 1;
             padding: 12px;
@@ -270,14 +215,8 @@ if (isset($_GET['buscar'])) {
             font-weight: bold;
             cursor: pointer;
         }
-        .btn-confirmar {
-            background: #4CAF50;
-            color: white;
-        }
-        .btn-cancelar {
-            background: #666;
-            color: white;
-        }
+        .btn-confirmar { background: #4CAF50; color: white; }
+        .btn-cancelar { background: #666; color: white; }
     </style>
 </head>
 <body>
@@ -325,7 +264,7 @@ if (isset($_GET['buscar'])) {
                             $<?php echo number_format($prod['precio_venta'], 2); ?>
                         </div>
                         
-                        <button class="btn-agregar-stock" onclick="abrirModal(<?php echo $prod['id_producto']; ?>, '<?php echo htmlspecialchars($prod['nombre_producto']); ?>')">
+                        <button class="btn-agregar-stock" onclick="abrirModal(<?php echo $prod['id_producto']; ?>, '<?php echo addslashes($prod['nombre_producto']); ?>')">
                             ➕ Agregar Stock
                         </button>
                     </div>
@@ -342,7 +281,6 @@ if (isset($_GET['buscar'])) {
         </div>
     </div>
 
-    <!-- Modal -->
     <div class="modal" id="modalStock">
         <div class="modal-content">
             <h2>📦 Agregar Stock</h2>
@@ -354,7 +292,7 @@ if (isset($_GET['buscar'])) {
                 
                 <div class="form-group">
                     <label>Cantidad a agregar:</label>
-                    <input type="number" name="cantidad" id="modalCantidad" min="1" required autofocus>
+                    <input type="number" name="cantidad" id="modalCantidad" min="1" required>
                 </div>
                 
                 <input type="hidden" name="producto_id" id="modalProductoId">
@@ -380,7 +318,6 @@ if (isset($_GET['buscar'])) {
             document.getElementById('modalStock').style.display = 'none';
         }
 
-        // Cerrar modal al hacer click fuera
         window.onclick = function(event) {
             const modal = document.getElementById('modalStock');
             if (event.target == modal) {
