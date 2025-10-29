@@ -1,39 +1,37 @@
 <?php
 session_start();
-if (!isset($_SESSION['usuario'])) {
+require_once 'config.php';
+
+// Verificar si el usuario está autenticado
+if (!isset($_SESSION['usuario_id'])) {
     header("Location: login.php");
     exit();
 }
 
-require_once 'config.php';
-$database = new Database();
-$db = $database->getConnection();
+$usuario_nombre = $_SESSION['usuario_nombre'];
+$es_encargado = ($_SESSION['rol'] === 'encargado');
 
 // Obtener estadísticas
 try {
     // Total de productos
-    $query = "SELECT COUNT(*) as total FROM Productos";
-    $stmt = $db->query($query);
+    $stmt = $pdo->query("SELECT COUNT(*) as total FROM productos");
     $total_productos = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
     
     // Productos con stock bajo
-    $query = "SELECT COUNT(*) as total FROM Inventario WHERE stock_actual <= stock_minimo";
-    $stmt = $db->query($query);
+    $stmt = $pdo->query("SELECT COUNT(*) as total FROM productos WHERE stock <= stock_minimo");
     $productos_bajo_stock = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
     
     // Ventas del día
-    $query = "SELECT COUNT(*) as total, COALESCE(SUM(total), 0) as monto 
-             FROM Ventas 
-             WHERE DATE(fecha_venta) = CURDATE()";
-    $stmt = $db->query($query);
+    $stmt = $pdo->query("SELECT COUNT(*) as total, COALESCE(SUM(total), 0) as monto 
+                        FROM ventas 
+                        WHERE DATE(fecha_venta) = CURDATE()");
     $ventas_hoy = $stmt->fetch(PDO::FETCH_ASSOC);
     
     // Ventas del mes
-    $query = "SELECT COUNT(*) as total, COALESCE(SUM(total), 0) as monto 
-             FROM Ventas 
-             WHERE MONTH(fecha_venta) = MONTH(CURDATE()) 
-             AND YEAR(fecha_venta) = YEAR(CURDATE())";
-    $stmt = $db->query($query);
+    $stmt = $pdo->query("SELECT COUNT(*) as total, COALESCE(SUM(total), 0) as monto 
+                        FROM ventas 
+                        WHERE MONTH(fecha_venta) = MONTH(CURDATE()) 
+                        AND YEAR(fecha_venta) = YEAR(CURDATE())");
     $ventas_mes = $stmt->fetch(PDO::FETCH_ASSOC);
     
 } catch(Exception $e) {
@@ -269,10 +267,10 @@ try {
             <p style="color: #666; margin-top: 10px;">Sistema de Gestión de Inventario</p>
         </div>
         <div class="user-info">
-            <p>👤 Bienvenido, <strong><?php echo htmlspecialchars($_SESSION['nombre']); ?></strong></p>
+            <p>👤 Bienvenido, <strong><?php echo htmlspecialchars($usuario_nombre); ?></strong></p>
             <p>
-                <span class="badge <?php echo $_SESSION['tipo'] == 'encargado' ? 'badge-danger' : 'badge-info'; ?>">
-                    <?php echo $_SESSION['tipo'] == 'encargado' ? '🔑 Encargado' : '👷 Trabajador'; ?>
+                <span class="badge <?php echo $es_encargado ? 'badge-danger' : 'badge-info'; ?>">
+                    <?php echo $es_encargado ? '🔑 Encargado' : '👷 Trabajador'; ?>
                 </span>
             </p>
             <a href="logout.php" class="btn-logout">🚪 Cerrar Sesión</a>
@@ -308,24 +306,22 @@ try {
     
     <!-- Acciones Rápidas -->
     <div class="actions-grid">
-        <!-- NUEVO: Punto de Venta -->
+        <!-- Punto de Venta -->
         <a href="vender.php" class="action-card primary">
             <div class="action-icon">💰</div>
             <h3>Punto de Venta</h3>
             <p>Realizar ventas y cobrar productos</p>
         </a>
         
-        <!-- NUEVO: Entrada de Mercancía (solo encargados) -->
-        <?php if ($_SESSION['tipo'] == 'encargado'): ?>
+        <!-- Entrada de Mercancía -->
         <a href="entrada_mercancia.php" class="action-card success">
             <div class="action-icon">📥</div>
             <h3>Entrada de Mercancía</h3>
             <p>Aumentar stock de productos</p>
         </a>
-        <?php endif; ?>
         
         <!-- Agregar Producto (solo encargados) -->
-        <?php if ($_SESSION['tipo'] == 'encargado'): ?>
+        <?php if ($es_encargado): ?>
         <a href="agregar_producto.php" class="action-card">
             <div class="action-icon">➕</div>
             <h3>Agregar Producto</h3>
@@ -333,15 +329,15 @@ try {
         </a>
         <?php endif; ?>
         
-        <!-- NUEVO: Historial de Ventas -->
+        <!-- Historial de Ventas -->
         <a href="historial_ventas.php" class="action-card">
             <div class="action-icon">📋</div>
             <h3>Historial de Ventas</h3>
             <p>Ver todas las ventas realizadas</p>
         </a>
         
-        <!-- NUEVO: Cierre de Caja (solo encargados) -->
-        <?php if ($_SESSION['tipo'] == 'encargado'): ?>
+        <!-- Cierre de Caja (solo encargados) -->
+        <?php if ($es_encargado): ?>
         <a href="cierre_caja.php" class="action-card">
             <div class="action-icon">💵</div>
             <h3>Cierre de Caja</h3>
@@ -349,7 +345,7 @@ try {
         </a>
         <?php endif; ?>
         
-        <!-- Escanear (antiguo) -->
+        <!-- Escanear -->
         <a href="escanear.php" class="action-card">
             <div class="action-icon">🔫</div>
             <h3>Escáner de Códigos</h3>
