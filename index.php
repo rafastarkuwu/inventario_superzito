@@ -174,6 +174,10 @@ try {
             padding: 15px;
             border-radius: 10px;
             text-align: center;
+            transition: all 0.3s;
+        }
+        .info-caja-item:hover {
+            background: rgba(255,255,255,0.3);
         }
         .info-caja-item .label {
             font-size: 12px;
@@ -381,15 +385,22 @@ try {
             <div class="info-caja-grid">
                 <div class="info-caja-item">
                     <div class="label">🕐 Hora Apertura</div>
-                    <div class="value"><?php echo date('H:i', strtotime($caja_abierta['fecha_apertura'])); ?></div>
+                    <div class="value"><?php 
+                        $fecha = new DateTime($caja_abierta['fecha_apertura']);
+                        echo $fecha->format('H:i'); 
+                    ?></div>
                 </div>
-                <div class="info-caja-item">
+                <div class="info-caja-item" onclick="revelarMonto()" style="cursor: pointer;" id="montoInicial" title="Click para ver">
                     <div class="label">💵 Monto Inicial</div>
-                    <div class="value">$<?php echo number_format($caja_abierta['monto_inicial'], 2); ?></div>
+                    <div class="value" id="valorMonto">$•••.••</div>
+                    <div style="font-size: 10px; opacity: 0.8; margin-top: 5px;">👁️ Click para ver</div>
                 </div>
                 <div class="info-caja-item">
                     <div class="label">📅 Fecha</div>
-                    <div class="value"><?php echo date('d/m/Y', strtotime($caja_abierta['fecha_apertura'])); ?></div>
+                    <div class="value"><?php 
+                        $fecha = new DateTime($caja_abierta['fecha_apertura']);
+                        echo $fecha->format('d/m/Y'); 
+                    ?></div>
                 </div>
             </div>
         </div>
@@ -486,6 +497,10 @@ try {
         // Valores reales (PHP)
         const ventasHoy = <?php echo $ventas_hoy; ?>;
         const ventasMes = <?php echo $ventas_mes; ?>;
+        <?php if ($caja_abierta): ?>
+        const montoInicial = <?php echo $caja_abierta['monto_inicial']; ?>;
+        let montoRevelado = false;
+        <?php endif; ?>
         
         // Estados de revelación
         let hoyRevelado = false;
@@ -528,6 +543,20 @@ try {
                 }
             }
         }
+
+        <?php if ($caja_abierta): ?>
+        function revelarMonto() {
+            const valor = document.getElementById('valorMonto');
+            
+            if (!montoRevelado) {
+                valor.textContent = '$' + montoInicial.toFixed(2);
+                montoRevelado = true;
+            } else {
+                valor.textContent = '$•••.••';
+                montoRevelado = false;
+            }
+        }
+        <?php endif; ?>
     </script>
 </body>
 </html>
