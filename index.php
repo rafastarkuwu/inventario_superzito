@@ -424,10 +424,10 @@ try {
                 <?php endif; ?>
             </a>
 
-            <a href="escanear.php" class="modulo modulo-scanner">
-                <div class="modulo-icon">🔫</div>
-                <div class="modulo-titulo">Escáner de Códigos</div>
-                <div class="modulo-descripcion">Consultar productos por código de barras</div>
+            <a href="pago_proveedores.php" class="modulo modulo-scanner">
+                <div class="modulo-icon">💳</div>
+                <div class="modulo-titulo">Pago a Proveedores</div>
+                <div class="modulo-descripcion">Gestionar proveedores y realizar pagos</div>
             </a>
         </div>
     </div>
