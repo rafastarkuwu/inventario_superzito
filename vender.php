@@ -53,6 +53,9 @@ if (isset($_GET['api']) && $_GET['api'] === 'buscar_nombre' && isset($_GET['nomb
 // Procesar venta
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
     $carrito = json_decode($_POST['carrito'], true);
+    $metodo_pago = $_POST['metodo_pago'];
+    $monto_recibido = isset($_POST['monto_recibido']) ? floatval($_POST['monto_recibido']) : null;
+    $cambio = isset($_POST['cambio']) ? floatval($_POST['cambio']) : null;
     
     if (!empty($carrito)) {
         try {
@@ -63,12 +66,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
                 $total += floatval($item['subtotal']);
             }
             
-            // Insertar venta
+            // Insertar venta con método de pago
             $stmt = $pdo->prepare("
-                INSERT INTO Ventas (id_encargado, fecha_venta, total) 
-                VALUES (?, NOW(), ?)
+                INSERT INTO Ventas (id_encargado, fecha_venta, total, metodo_pago, monto_recibido, cambio) 
+                VALUES (?, NOW(), ?, ?, ?, ?)
             ");
-            $stmt->execute([$usuario_id, $total]);
+            $stmt->execute([$usuario_id, $total, $metodo_pago, $monto_recibido, $cambio]);
             
             $venta_id = $pdo->lastInsertId();
             
@@ -103,8 +106,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
             
             $pdo->commit();
             
+            $mensaje = "✅ VENTA COBRADA\\n\\n";
+            $mensaje .= "Total: $" . number_format($total, 2) . "\\n";
+            $mensaje .= "Método: " . strtoupper($metodo_pago) . "\\n";
+            if ($metodo_pago === 'efectivo' && $cambio > 0) {
+                $mensaje .= "Recibido: $" . number_format($monto_recibido, 2) . "\\n";
+                $mensaje .= "Cambio: $" . number_format($cambio, 2) . "\\n";
+            }
+            $mensaje .= "Venta #" . $venta_id;
+            
             echo "<script>
-                alert('✅ VENTA COBRADA\\n\\nTotal: $" . number_format($total, 2) . "\\nVenta #" . $venta_id . "');
+                alert('$mensaje');
                 window.location.href = 'vender.php';
             </script>";
             exit();
@@ -115,8 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
         }
     }
 }
-?>
-<!DOCTYPE html>
+?><?php echo '<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -254,17 +265,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
             color: #666;
             font-size: 12px;
         }
-        .item-cantidad {
-            background: #667eea;
-            color: white;
-            padding: 6px 12px;
-            border-radius: 15px;
-            font-weight: bold;
-            margin: 0 10px;
-            min-width: 80px;
-            text-align: center;
-            font-size: 14px;
-        }
         .item-precio {
             font-size: 18px;
             font-weight: bold;
@@ -292,6 +292,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
         }
         .total-label { font-size: 20px; margin-bottom: 10px; }
         .total-amount { font-size: 48px; font-weight: bold; }
+        
         .btn-cobrar {
             width: 100%;
             padding: 20px;
@@ -333,6 +334,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
             0%, 100% { background: white; }
             50% { background: #ffcccc; }
         }
+        
+        /* Modal estilos */
         .modal {
             display: none;
             position: fixed;
@@ -342,20 +345,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
             height: 100%;
             background: rgba(0,0,0,0.7);
             z-index: 1000;
+            justify-content: center;
+            align-items: center;
         }
+        .modal.active { display: flex; }
         .modal-content {
             background: white;
-            max-width: 500px;
-            margin: 80px auto;
-            padding: 30px;
+            max-width: 550px;
+            width: 90%;
+            padding: 35px;
             border-radius: 15px;
+            max-height: 90vh;
+            overflow-y: auto;
         }
         .modal-content h2 {
-            color: #4CAF50;
-            margin-bottom: 20px;
+            color: #333;
+            margin-bottom: 25px;
+            text-align: center;
+            font-size: 26px;
+        }
+        
+        /* Métodos de pago */
+        .metodos-pago {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 25px;
+        }
+        .metodo-btn {
+            padding: 20px 10px;
+            border: 3px solid #ddd;
+            background: white;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
             text-align: center;
         }
-        .form-group { margin-bottom: 20px; }
+        .metodo-btn:hover {
+            border-color: #667eea;
+            transform: translateY(-3px);
+        }
+        .metodo-btn.active {
+            background: #667eea;
+            border-color: #667eea;
+            color: white;
+        }
+        .metodo-icon {
+            font-size: 36px;
+            margin-bottom: 8px;
+        }
+        .metodo-nombre {
+            font-weight: bold;
+            font-size: 14px;
+        }
+        
+        /* Formularios de pago */
+        .pago-content {
+            display: none;
+        }
+        .pago-content.active {
+            display: block;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
         .form-group label {
             display: block;
             margin-bottom: 8px;
@@ -368,12 +421,104 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
             padding: 15px;
             border: 2px solid #ddd;
             border-radius: 8px;
-            font-size: 18px;
+            font-size: 20px;
+            text-align: center;
+            font-weight: bold;
         }
         .form-group input:focus {
-            border-color: #4CAF50;
+            border-color: #667eea;
             outline: none;
         }
+        .precio-display {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .precio-display .label {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+        .precio-display .valor {
+            font-size: 42px;
+            font-weight: bold;
+            margin-top: 8px;
+        }
+        .cambio-display {
+            background: #d4edda;
+            border: 3px solid #28a745;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            margin-top: 15px;
+        }
+        .cambio-display .label {
+            font-size: 16px;
+            color: #155724;
+        }
+        .cambio-display .valor {
+            font-size: 36px;
+            font-weight: bold;
+            color: #28a745;
+            margin-top: 8px;
+        }
+        .confirmacion-box {
+            background: #fff3cd;
+            border: 3px solid #ffc107;
+            padding: 25px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        .confirmacion-box .icono {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        .confirmacion-box .texto {
+            font-size: 18px;
+            color: #856404;
+            margin-bottom: 15px;
+        }
+        .btn-confirmar-pago {
+            width: 100%;
+            padding: 18px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        .btn-confirmar-pago:hover {
+            background: #218838;
+        }
+        .modal-buttons {
+            display: flex;
+            gap: 12px;
+            margin-top: 25px;
+        }
+        .modal-buttons button {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .btn-confirmar {
+            background: #4CAF50;
+            color: white;
+        }
+        .btn-cancelar {
+            background: #666;
+            color: white;
+        }
+        
+        /* Modal granel */
         .opcion-tabs {
             display: flex;
             gap: 10px;
@@ -394,20 +539,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
             color: white;
             border-color: #4CAF50;
         }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
-        .modal-buttons { display: flex; gap: 10px; margin-top: 25px; }
-        .modal-buttons button {
-            flex: 1;
-            padding: 15px;
-            border: none;
-            border-radius: 8px;
-            font-size: 18px;
-            font-weight: bold;
-            cursor: pointer;
+        .tab-content {
+            display: none;
         }
-        .btn-confirmar { background: #4CAF50; color: white; }
-        .btn-cancelar { background: #666; color: white; }
+        .tab-content.active {
+            display: block;
+        }
         .precio-info {
             background: #f0f4ff;
             padding: 15px;
@@ -415,7 +552,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
             text-align: center;
             margin-bottom: 20px;
         }
-        .precio-info .label { font-size: 14px; color: #666; }
+        .precio-info .label {
+            font-size: 14px;
+            color: #666;
+        }
         .precio-info .valor {
             font-size: 28px;
             font-weight: bold;
@@ -423,8 +563,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
             margin-top: 5px;
         }
     </style>
-</head>
-<body>
+</head>'; ?><body>
     <div class="header">
         <div>
             <h1>💰 CAJA REGISTRADORA</h1>
@@ -434,14 +573,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
     </div>
 
     <div class="container">
-        <!-- Escáner de códigos -->
         <div class="scanner-box">
             <div class="scanner-icon">🔫</div>
             <h2>Escanear Código de Barras</h2>
             <input type="text" id="scanInput" placeholder="Escanea aquí..." autocomplete="off">
         </div>
 
-        <!-- Búsqueda manual para granel -->
         <div class="buscar-box">
             <div class="buscar-icon">🔍</div>
             <h2>Buscar Producto (A granel o manual)</h2>
@@ -449,7 +586,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
             <div id="resultadosBusqueda" class="resultados-busqueda"></div>
         </div>
 
-        <!-- Carrito -->
         <div class="carrito-box">
             <h2 style="margin-bottom: 15px;">🛒 PRODUCTOS</h2>
             <div id="listaProductos">
@@ -462,19 +598,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
             <div class="total-amount" id="totalMonto">$0.00</div>
         </div>
 
-        <form method="POST" id="formVenta">
-            <input type="hidden" name="carrito" id="carritoData">
-            <button type="submit" name="finalizar_venta" class="btn-cobrar" id="btnCobrar" style="display: none;">
-                💵 COBRAR
-            </button>
-        </form>
+        <button type="button" class="btn-cobrar" id="btnCobrar" style="display: none;" onclick="abrirModalPago()">
+            💵 COBRAR
+        </button>
         
         <button type="button" class="btn-limpiar" id="btnLimpiar" style="display: none;" onclick="limpiarTodo()">
             🗑️ LIMPIAR TODO
         </button>
     </div>
 
-    <!-- Modal para cantidad/precio -->
+    <!-- Modal para cantidad/precio (granel) -->
     <div class="modal" id="modalGranel">
         <div class="modal-content">
             <h2 id="modalTitulo">🏪 Producto a Granel</h2>
@@ -517,13 +650,99 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
 
             <div class="modal-buttons">
                 <button type="button" class="btn-confirmar" onclick="confirmarGranel()">✅ Agregar</button>
-                <button type="button" class="btn-cancelar" onclick="cerrarModal()">❌ Cancelar</button>
+                <button type="button" class="btn-cancelar" onclick="cerrarModal('modalGranel')">❌ Cancelar</button>
             </div>
         </div>
     </div>
 
+    <!-- Modal para método de pago -->
+    <div class="modal" id="modalPago">
+        <div class="modal-content">
+            <h2>💳 Método de Pago</h2>
+            
+            <div class="precio-display">
+                <div class="label">TOTAL A PAGAR</div>
+                <div class="valor" id="totalPagoModal">$0.00</div>
+            </div>
+
+            <div class="metodos-pago">
+                <div class="metodo-btn active" onclick="seleccionarMetodo('efectivo')">
+                    <div class="metodo-icon">💵</div>
+                    <div class="metodo-nombre">Efectivo</div>
+                </div>
+                <div class="metodo-btn" onclick="seleccionarMetodo('transferencia')">
+                    <div class="metodo-icon">📱</div>
+                    <div class="metodo-nombre">Transferencia</div>
+                </div>
+                <div class="metodo-btn" onclick="seleccionarMetodo('tarjeta')">
+                    <div class="metodo-icon">💳</div>
+                    <div class="metodo-nombre">Tarjeta</div>
+                </div>
+            </div>
+
+            <!-- Contenido para EFECTIVO -->
+            <div class="pago-content active" id="pagoEfectivo">
+                <div class="form-group">
+                    <label>💵 ¿Con cuánto paga el cliente?</label>
+                    <input type="number" id="inputEfectivo" step="0.01" min="0" placeholder="0.00" oninput="calcularCambio()">
+                </div>
+                <div class="cambio-display" id="cambioDisplay" style="display: none;">
+                    <div class="label">💰 CAMBIO A DAR:</div>
+                    <div class="valor" id="valorCambio">$0.00</div>
+                </div>
+            </div>
+
+            <!-- Contenido para TRANSFERENCIA -->
+            <div class="pago-content" id="pagoTransferencia">
+                <div class="confirmacion-box">
+                    <div class="icono">📱</div>
+                    <div class="texto">
+                        <strong>Esperando transferencia...</strong><br>
+                        Una vez que llegue la transferencia, presiona confirmar
+                    </div>
+                    <button type="button" class="btn-confirmar-pago" onclick="confirmarVenta()">
+                        ✅ Transferencia Recibida
+                    </button>
+                </div>
+            </div>
+
+            <!-- Contenido para TARJETA -->
+            <div class="pago-content" id="pagoTarjeta">
+                <div class="confirmacion-box">
+                    <div class="icono">💳</div>
+                    <div class="texto">
+                        <strong>Pase la tarjeta...</strong><br>
+                        Una vez procesado el pago, presiona confirmar
+                    </div>
+                    <button type="button" class="btn-confirmar-pago" onclick="confirmarVenta()">
+                        ✅ Pago Aprobado
+                    </button>
+                </div>
+            </div>
+
+            <div class="modal-buttons">
+                <button type="button" class="btn-confirmar" id="btnConfirmarEfectivo" onclick="confirmarVenta()">
+                    ✅ Confirmar
+                </button>
+                <button type="button" class="btn-cancelar" onclick="cerrarModal('modalPago')">
+                    ❌ Cancelar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <form method="POST" id="formVenta" style="display: none;">
+        <input type="hidden" name="carrito" id="carritoData">
+        <input type="hidden" name="metodo_pago" id="metodoPagoData">
+        <input type="hidden" name="monto_recibido" id="montoRecibidoData">
+        <input type="hidden" name="cambio" id="cambioData">
+        <input type="hidden" name="finalizar_venta" value="1">
+    </form>
+
     <script>
         let carrito = [];
+        let totalVenta = 0;
+        let metodoSeleccionado = 'efectivo';
         const scanInput = document.getElementById('scanInput');
         const buscarInput = document.getElementById('buscarInput');
         let tabActual = 'cantidad';
@@ -626,7 +845,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
             document.getElementById('cantidadPorPrecio').textContent = '0 kg';
             
             // Mostrar modal
-            document.getElementById('modalGranel').style.display = 'block';
+            document.getElementById('modalGranel').classList.add('active');
             
             setTimeout(() => {
                 if (tabActual === 'cantidad') {
@@ -706,7 +925,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
             });
             
             hacerBeep();
-            cerrarModal();
+            cerrarModal('modalGranel');
             actualizarVista();
         }
 
@@ -732,8 +951,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
             actualizarVista();
         }
 
-        function cerrarModal() {
-            document.getElementById('modalGranel').style.display = 'none';
+        function cerrarModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
             scanInput.focus();
         }
 
@@ -770,10 +989,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
             }
             
             let html = '';
-            let total = 0;
+            totalVenta = 0;
             
             carrito.forEach((item, i) => {
-                total += item.subtotal;
+                totalVenta += item.subtotal;
                 
                 const detalle = item.tipo === 'granel' 
                     ? `${item.cantidad.toFixed(3)} kg × $${item.precio.toFixed(2)}`
@@ -792,8 +1011,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
             });
             
             lista.innerHTML = html;
-            document.getElementById('totalMonto').textContent = '$' + total.toFixed(2);
-            document.getElementById('carritoData').value = JSON.stringify(carrito);
+            document.getElementById('totalMonto').textContent = '$' + totalVenta.toFixed(2);
             totalBox.style.display = 'block';
             btnCobrar.style.display = 'block';
             btnLimpiar.style.display = 'block';
@@ -810,18 +1028,96 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_venta'])) {
             }
         }
 
-        // Validar antes de cobrar
-        document.getElementById('formVenta').addEventListener('submit', function(e) {
-            const total = carrito.reduce((sum, item) => sum + item.subtotal, 0);
-            if (!confirm('💵 COBRAR $' + total.toFixed(2) + '?')) {
-                e.preventDefault();
-            }
-        });
+        // FUNCIONES DE PAGO
+        function abrirModalPago() {
+            document.getElementById('totalPagoModal').textContent = '$' + totalVenta.toFixed(2);
+            document.getElementById('modalPago').classList.add('active');
+            
+            // Resetear
+            metodoSeleccionado = 'efectivo';
+            document.getElementById('inputEfectivo').value = '';
+            document.getElementById('cambioDisplay').style.display = 'none';
+            
+            // Seleccionar efectivo por defecto
+            seleccionarMetodo('efectivo');
+            
+            setTimeout(() => {
+                document.getElementById('inputEfectivo').focus();
+            }, 200);
+        }
 
-        // Cerrar modal con ESC
+        function seleccionarMetodo(metodo) {
+            metodoSeleccionado = metodo;
+            
+            // Actualizar botones
+            document.querySelectorAll('.metodo-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.closest('.metodo-btn').classList.add('active');
+            
+            // Actualizar contenido
+            document.querySelectorAll('.pago-content').forEach(content => content.classList.remove('active'));
+            
+            if (metodo === 'efectivo') {
+                document.getElementById('pagoEfectivo').classList.add('active');
+                document.getElementById('btnConfirmarEfectivo').style.display = 'block';
+                setTimeout(() => document.getElementById('inputEfectivo').focus(), 100);
+            } else if (metodo === 'transferencia') {
+                document.getElementById('pagoTransferencia').classList.add('active');
+                document.getElementById('btnConfirmarEfectivo').style.display = 'none';
+            } else if (metodo === 'tarjeta') {
+                document.getElementById('pagoTarjeta').classList.add('active');
+                document.getElementById('btnConfirmarEfectivo').style.display = 'none';
+            }
+        }
+
+        function calcularCambio() {
+            const efectivo = parseFloat(document.getElementById('inputEfectivo').value) || 0;
+            const cambio = efectivo - totalVenta;
+            
+            if (efectivo > 0 && cambio >= 0) {
+                document.getElementById('cambioDisplay').style.display = 'block';
+                document.getElementById('valorCambio').textContent = '$' + cambio.toFixed(2);
+            } else {
+                document.getElementById('cambioDisplay').style.display = 'none';
+            }
+        }
+
+        function confirmarVenta() {
+            // Validaciones según método
+            if (metodoSeleccionado === 'efectivo') {
+                const efectivo = parseFloat(document.getElementById('inputEfectivo').value) || 0;
+                
+                if (efectivo < totalVenta) {
+                    alert('⚠️ El monto recibido es menor al total');
+                    return;
+                }
+                
+                const cambio = efectivo - totalVenta;
+                
+                document.getElementById('metodoPagoData').value = 'efectivo';
+                document.getElementById('montoRecibidoData').value = efectivo;
+                document.getElementById('cambioData').value = cambio;
+                
+            } else {
+                // Transferencia o tarjeta
+                if (!confirm('¿Confirmar pago por ' + metodoSeleccionado.toUpperCase() + '?')) {
+                    return;
+                }
+                
+                document.getElementById('metodoPagoData').value = metodoSeleccionado;
+                document.getElementById('montoRecibidoData').value = '';
+                document.getElementById('cambioData').value = '';
+            }
+            
+            // Enviar formulario
+            document.getElementById('carritoData').value = JSON.stringify(carrito);
+            document.getElementById('formVenta').submit();
+        }
+
+        // Cerrar modales con ESC
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
-                cerrarModal();
+                cerrarModal('modalGranel');
+                cerrarModal('modalPago');
             }
         });
 
