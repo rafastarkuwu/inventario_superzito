@@ -37,9 +37,21 @@ $stmt = $pdo->prepare("
 $stmt->execute([$usuario_id, $caja_actual['fecha_apertura']]);
 $ventas = $stmt->fetch(PDO::FETCH_ASSOC);
 
+// Calcular retiros del turno actual
+$stmt = $pdo->prepare("
+    SELECT 
+        COUNT(*) as total_retiros,
+        COALESCE(SUM(monto), 0) as total_dinero_retiros
+    FROM Retiros 
+    WHERE id_caja = ?
+");
+$stmt->execute([$caja_actual['id_caja']]);
+$retiros = $stmt->fetch(PDO::FETCH_ASSOC);
+
 $monto_inicial = floatval($caja_actual['monto_inicial']);
 $monto_ventas = floatval($ventas['total_dinero']);
-$monto_esperado = $monto_inicial + $monto_ventas;
+$monto_retiros = floatval($retiros['total_dinero_retiros']);
+$monto_esperado = $monto_inicial + $monto_ventas - $monto_retiros;
 
 // Procesar cierre
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cerrar_caja'])) {
@@ -143,7 +155,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cerrar_caja'])) {
         }
         .info-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
             gap: 15px;
             margin-bottom: 20px;
         }
@@ -162,6 +174,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cerrar_caja'])) {
             font-size: 28px;
             font-weight: bold;
             color: #667eea;
+        }
+        .calculo-box {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+        }
+        .calculo-box h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 22px;
+        }
+        .linea-calculo {
+            display: flex;
+            justify-content: space-between;
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            font-size: 18px;
+        }
+        .linea-calculo:last-child {
+            border-bottom: none;
+        }
+        .linea-calculo.positivo .valor {
+            color: #4CAF50;
+        }
+        .linea-calculo.negativo .valor {
+            color: #dc3545;
         }
         .monto-esperado {
             background: #d4edda;
@@ -339,7 +378,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cerrar_caja'])) {
                         $<?php echo number_format($monto_ventas, 2); ?>
                     </div>
                 </div>
+                <div class="info-item">
+                    <div class="info-label">💸 Total Retiros</div>
+                    <div class="info-value" style="color: #dc3545;">
+                        <?php echo $retiros['total_retiros']; ?>
+                    </div>
+                </div>
             </div>
+        </div>
+
+        <!-- Cálculo del dinero esperado -->
+        <div class="calculo-box">
+            <h2>🧮 Cálculo del Dinero en Caja</h2>
+            
+            <div class="linea-calculo">
+                <span>💵 Monto Inicial (Fondo):</span>
+                <strong class="valor">$<?php echo number_format($monto_inicial, 2); ?></strong>
+            </div>
+            
+            <div class="linea-calculo positivo">
+                <span>➕ Ventas del Turno:</span>
+                <strong class="valor">+ $<?php echo number_format($monto_ventas, 2); ?></strong>
+            </div>
+            
+            <?php if ($monto_retiros > 0): ?>
+            <div class="linea-calculo negativo">
+                <span>➖ Retiros de Efectivo:</span>
+                <strong class="valor">- $<?php echo number_format($monto_retiros, 2); ?></strong>
+            </div>
+            <?php endif; ?>
         </div>
 
         <!-- Monto esperado -->
@@ -347,7 +414,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cerrar_caja'])) {
             <div class="label">💎 DINERO QUE DEBE HABER EN CAJA:</div>
             <div class="valor">$<?php echo number_format($monto_esperado, 2); ?></div>
             <div style="font-size: 14px; color: #155724; margin-top: 10px;">
-                (Monto inicial + Ventas)
+                (Inicial + Ventas - Retiros)
             </div>
         </div>
 
@@ -397,7 +464,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cerrar_caja'])) {
         const montoEsperado = <?php echo $monto_esperado; ?>;
         const inputMonto = document.getElementById('montoFinal');
         const divDiferencia = document.getElementById('diferencia');
-        const btnCerrar = document.getElementById('btnCerrar');
 
         inputMonto.addEventListener('input', function() {
             const montoFinal = parseFloat(this.value) || 0;
@@ -448,7 +514,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cerrar_caja'])) {
             }
         });
 
-        // Auto-formatear al salir del input
         inputMonto.addEventListener('blur', function() {
             if (this.value) {
                 this.value = parseFloat(this.value).toFixed(2);
