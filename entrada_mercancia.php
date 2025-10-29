@@ -13,7 +13,7 @@ $tipo_mensaje = '';
 // Procesar entrada de mercancía
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['agregar_stock'])) {
     $producto_id = intval($_POST['producto_id']);
-    $cantidad = intval($_POST['cantidad']);
+    $cantidad = floatval($_POST['cantidad']); // Acepta decimales para kg
     
     if ($cantidad <= 0) {
         $mensaje = "La cantidad debe ser mayor a 0";
@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['agregar_stock'])) {
                 $stmt = $pdo->prepare("UPDATE Inventario SET stock_actual = stock_actual + ? WHERE id_inventario = ?");
                 $stmt->execute([$cantidad, $producto['id_inventario']]);
                 
-                $mensaje = "✅ Stock actualizado: +$cantidad unidades";
+                $mensaje = "✅ Stock actualizado: +$cantidad";
                 $tipo_mensaje = 'success';
             } else {
                 $mensaje = "❌ Producto no encontrado";
@@ -142,6 +142,22 @@ if (isset($_GET['buscar'])) {
         .producto-item:hover { border-color: #4CAF50; background: #f0fff4; }
         .producto-info h3 { color: #333; margin-bottom: 5px; }
         .producto-info p { color: #666; font-size: 14px; }
+        .producto-tipo {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-top: 3px;
+        }
+        .tipo-normal {
+            background: #e3f2fd;
+            color: #1976D2;
+        }
+        .tipo-granel {
+            background: #fff3e0;
+            color: #F57C00;
+        }
         .stock-info { text-align: center; }
         .stock-actual {
             font-size: 24px;
@@ -205,6 +221,12 @@ if (isset($_GET['buscar'])) {
             border-radius: 5px;
             font-size: 16px;
         }
+        .form-group small {
+            display: block;
+            color: #666;
+            margin-top: 5px;
+            font-size: 13px;
+        }
         .modal-buttons { display: flex; gap: 10px; }
         .modal-buttons button {
             flex: 1;
@@ -247,25 +269,41 @@ if (isset($_GET['buscar'])) {
         <div class="productos-box">
             <?php if (!empty($productos)): ?>
                 <?php foreach ($productos as $prod): ?>
+                    <?php 
+                    // Detectar si es granel (código empieza con GRANEL- o no es numérico típico)
+                    $esGranel = strpos($prod['codigo_barras'], 'GRANEL-') === 0;
+                    $unidad = $esGranel ? 'kg' : 'unid';
+                    ?>
                     <div class="producto-item">
                         <div class="producto-info">
                             <h3><?php echo htmlspecialchars($prod['nombre_producto']); ?></h3>
-                            <p>📦 Código: <?php echo htmlspecialchars($prod['codigo_barras']); ?></p>
+                            <p>
+                                <?php if (!$esGranel): ?>
+                                    📦 Código: <?php echo htmlspecialchars($prod['codigo_barras']); ?>
+                                <?php endif; ?>
+                                <span class="producto-tipo <?php echo $esGranel ? 'tipo-granel' : 'tipo-normal'; ?>">
+                                    <?php echo $esGranel ? '⚖️ A GRANEL' : '📦 NORMAL'; ?>
+                                </span>
+                            </p>
                         </div>
                         
                         <div class="stock-info">
                             <div class="stock-actual <?php echo ($prod['stock_actual'] <= $prod['stock_minimo']) ? 'stock-bajo' : ''; ?>">
-                                <?php echo $prod['stock_actual']; ?>
+                                <?php echo number_format($prod['stock_actual'], $esGranel ? 3 : 0); ?>
                             </div>
-                            <div class="stock-label">Stock Actual</div>
+                            <div class="stock-label"><?php echo $unidad; ?></div>
                         </div>
                         
                         <div class="precio-info">
                             $<?php echo number_format($prod['precio_venta'], 2); ?>
+                            <div style="font-size: 12px; color: #666; font-weight: normal;">
+                                /<?php echo $unidad; ?>
+                            </div>
                         </div>
                         
-                        <button class="btn-agregar-stock" onclick="abrirModal(<?php echo $prod['id_producto']; ?>, '<?php echo addslashes($prod['nombre_producto']); ?>')">
-                            ➕ Agregar Stock
+                        <button class="btn-agregar-stock" 
+                                onclick="abrirModal(<?php echo $prod['id_producto']; ?>, '<?php echo addslashes($prod['nombre_producto']); ?>', <?php echo $esGranel ? 'true' : 'false'; ?>)">
+                            ➕ Agregar
                         </button>
                     </div>
                 <?php endforeach; ?>
@@ -283,7 +321,7 @@ if (isset($_GET['buscar'])) {
 
     <div class="modal" id="modalStock">
         <div class="modal-content">
-            <h2>📦 Agregar Stock</h2>
+            <h2 id="modalTitulo">📦 Agregar Stock</h2>
             <form method="POST">
                 <div class="form-group">
                     <label>Producto:</label>
@@ -291,11 +329,13 @@ if (isset($_GET['buscar'])) {
                 </div>
                 
                 <div class="form-group">
-                    <label>Cantidad a agregar:</label>
-                    <input type="number" name="cantidad" id="modalCantidad" min="1" required>
+                    <label id="labelCantidad">Cantidad a agregar:</label>
+                    <input type="number" name="cantidad" id="modalCantidad" min="0.001" step="1" required>
+                    <small id="smallCantidad">Ingresa la cantidad en unidades</small>
                 </div>
                 
                 <input type="hidden" name="producto_id" id="modalProductoId">
+                <input type="hidden" id="modalEsGranel" value="false">
                 
                 <div class="modal-buttons">
                     <button type="submit" name="agregar_stock" class="btn-confirmar">✅ Confirmar</button>
@@ -306,10 +346,32 @@ if (isset($_GET['buscar'])) {
     </div>
 
     <script>
-        function abrirModal(id, nombre) {
+        function abrirModal(id, nombre, esGranel) {
             document.getElementById('modalProductoId').value = id;
             document.getElementById('modalProductoNombre').value = nombre;
+            document.getElementById('modalEsGranel').value = esGranel;
             document.getElementById('modalCantidad').value = '';
+            
+            // Ajustar etiquetas y formato según el tipo
+            const inputCantidad = document.getElementById('modalCantidad');
+            const labelCantidad = document.getElementById('labelCantidad');
+            const smallCantidad = document.getElementById('smallCantidad');
+            const modalTitulo = document.getElementById('modalTitulo');
+            
+            if (esGranel) {
+                modalTitulo.textContent = '⚖️ Agregar Stock (A Granel)';
+                labelCantidad.textContent = 'Kilogramos a agregar:';
+                smallCantidad.textContent = 'Ingresa la cantidad en kilogramos (ej: 2.5)';
+                inputCantidad.step = '0.001';
+                inputCantidad.placeholder = '0.000';
+            } else {
+                modalTitulo.textContent = '📦 Agregar Stock';
+                labelCantidad.textContent = 'Unidades a agregar:';
+                smallCantidad.textContent = 'Ingresa la cantidad en unidades';
+                inputCantidad.step = '1';
+                inputCantidad.placeholder = '0';
+            }
+            
             document.getElementById('modalStock').style.display = 'block';
             setTimeout(() => document.getElementById('modalCantidad').focus(), 100);
         }
