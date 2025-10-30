@@ -25,7 +25,7 @@ try {
     $stmt = $pdo->query("
         SELECT 
             p.id_producto,
-            p.nombre,
+            p.nombre_producto,
             p.codigo_barras,
             p.precio_venta,
             p.activo,
@@ -33,7 +33,7 @@ try {
             COALESCE(i.stock_minimo, 0) as stock_minimo
         FROM Productos p
         LEFT JOIN Inventario i ON p.id_producto = i.id_producto
-        ORDER BY p.nombre ASC
+        ORDER BY p.nombre_producto ASC
     ");
     $productos = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
@@ -231,6 +231,14 @@ try {
             border-radius: 8px;
             margin-bottom: 20px;
         }
+        .mensaje-error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
         
         .empty-state {
             text-align: center;
@@ -322,7 +330,7 @@ try {
                         <?php foreach ($productos as $prod): ?>
                         <tr>
                             <td><?php echo $prod['id_producto']; ?></td>
-                            <td><strong><?php echo htmlspecialchars($prod['nombre']); ?></strong></td>
+                            <td><strong><?php echo htmlspecialchars($prod['nombre_producto']); ?></strong></td>
                             <td><?php echo htmlspecialchars($prod['codigo_barras']); ?></td>
                             <td>$<?php echo number_format($prod['precio_venta'], 2); ?></td>
                             <td>
@@ -390,7 +398,7 @@ try {
             const accion = estadoActual ? 'desactivar' : 'activar';
             
             if (confirm(`¿Estás seguro de ${accion} este producto?`)) {
-                window.location.href = `agregar_columna_activo.php?id=${idProducto}&accion=${accion}`;
+                window.location.href = `toggle_producto.php?id=${idProducto}&accion=${accion}`;
             }
         }
     </script>
