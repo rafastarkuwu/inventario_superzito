@@ -19,7 +19,7 @@ $accion = $_GET['accion'];
 
 try {
     // Verificar que el producto existe
-    $stmt = $pdo->prepare("SELECT nombre, activo FROM Productos WHERE id_producto = ?");
+    $stmt = $pdo->prepare("SELECT nombre_producto, activo FROM Productos WHERE id_producto = ?");
     $stmt->execute([$id_producto]);
     $producto = $stmt->fetch(PDO::FETCH_ASSOC);
     
@@ -38,7 +38,7 @@ try {
     
     // Mensaje de éxito
     $texto_accion = ($nuevo_estado == 1) ? 'activado' : 'desactivado';
-    $_SESSION['mensaje_exito'] = "Producto '{$producto['nombre']}' {$texto_accion} correctamente";
+    $_SESSION['mensaje_exito'] = "Producto '{$producto['nombre_producto']}' {$texto_accion} correctamente";
     
 } catch (Exception $e) {
     $_SESSION['mensaje_error'] = "Error al cambiar el estado: " . $e->getMessage();
