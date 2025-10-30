@@ -10,6 +10,16 @@ if (!isset($_SESSION['usuario_id'])) {
 $usuario_nombre = $_SESSION['usuario_nombre'];
 $mensaje = '';
 
+// Capturar mensajes de sesión
+if (isset($_SESSION['mensaje_exito'])) {
+    $mensaje = $_SESSION['mensaje_exito'];
+    unset($_SESSION['mensaje_exito']);
+}
+if (isset($_SESSION['mensaje_error'])) {
+    $mensaje = $_SESSION['mensaje_error'];
+    unset($_SESSION['mensaje_error']);
+}
+
 // Obtener todos los productos con su inventario
 try {
     $stmt = $pdo->query("
