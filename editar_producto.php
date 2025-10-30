@@ -28,10 +28,11 @@ try {
             p.codigo_barras,
             p.precio_venta,
             p.activo,
+            p.id_inventario,
             COALESCE(i.stock_actual, 0) as stock_actual,
             COALESCE(i.stock_minimo, 0) as stock_minimo
         FROM Productos p
-        LEFT JOIN Inventario i ON p.id_producto = i.id_producto
+        LEFT JOIN Inventario i ON p.id_inventario = i.id_inventario
         WHERE p.id_producto = ?
     ");
     $stmt->execute([$id_producto]);
@@ -80,25 +81,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ");
             $stmt->execute([$nombre, $codigo_barras, $precio_venta, $id_producto]);
             
-            // Actualizar stock mínimo en inventario (si existe el registro)
-            $stmt = $pdo->prepare("SELECT id_inventario FROM Inventario WHERE id_producto = ?");
-            $stmt->execute([$id_producto]);
-            $inventario_existe = $stmt->fetch();
-            
-            if ($inventario_existe) {
+            // Actualizar stock mínimo en inventario (si el producto tiene un inventario asociado)
+            if ($producto['id_inventario']) {
                 $stmt = $pdo->prepare("
                     UPDATE Inventario 
                     SET stock_minimo = ?
+                    WHERE id_inventario = ?
+                ");
+                $stmt->execute([$stock_minimo, $producto['id_inventario']]);
+            } else {
+                // Si no tiene inventario, crear uno y asociarlo
+                $stmt = $pdo->prepare("
+                    INSERT INTO Inventario (stock_actual, stock_minimo)
+                    VALUES (0, ?)
+                ");
+                $stmt->execute([$stock_minimo]);
+                $nuevo_id_inventario = $pdo->lastInsertId();
+                
+                // Asociar el inventario al producto
+                $stmt = $pdo->prepare("
+                    UPDATE Productos 
+                    SET id_inventario = ?
                     WHERE id_producto = ?
                 ");
-                $stmt->execute([$stock_minimo, $id_producto]);
-            } else {
-                // Si no existe registro en inventario, crearlo
-                $stmt = $pdo->prepare("
-                    INSERT INTO Inventario (id_producto, stock_actual, stock_minimo)
-                    VALUES (?, 0, ?)
-                ");
-                $stmt->execute([$id_producto, $stock_minimo]);
+                $stmt->execute([$nuevo_id_inventario, $id_producto]);
             }
             
             $pdo->commit();
@@ -112,10 +118,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     p.codigo_barras,
                     p.precio_venta,
                     p.activo,
+                    p.id_inventario,
                     COALESCE(i.stock_actual, 0) as stock_actual,
                     COALESCE(i.stock_minimo, 0) as stock_minimo
                 FROM Productos p
-                LEFT JOIN Inventario i ON p.id_producto = i.id_producto
+                LEFT JOIN Inventario i ON p.id_inventario = i.id_inventario
                 WHERE p.id_producto = ?
             ");
             $stmt->execute([$id_producto]);
