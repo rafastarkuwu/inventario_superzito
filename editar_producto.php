@@ -24,7 +24,7 @@ try {
     $stmt = $pdo->prepare("
         SELECT 
             p.id_producto,
-            p.nombre,
+            p.nombre_producto,
             p.codigo_barras,
             p.precio_venta,
             p.activo,
@@ -75,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Actualizar producto
             $stmt = $pdo->prepare("
                 UPDATE Productos 
-                SET nombre = ?, codigo_barras = ?, precio_venta = ?
+                SET nombre_producto = ?, codigo_barras = ?, precio_venta = ?
                 WHERE id_producto = ?
             ");
             $stmt->execute([$nombre, $codigo_barras, $precio_venta, $id_producto]);
@@ -108,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("
                 SELECT 
                     p.id_producto,
-                    p.nombre,
+                    p.nombre_producto,
                     p.codigo_barras,
                     p.precio_venta,
                     p.activo,
@@ -364,7 +364,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             type="text" 
                             id="nombre" 
                             name="nombre" 
-                            value="<?php echo htmlspecialchars($producto['nombre']); ?>"
+                            value="<?php echo htmlspecialchars($producto['nombre_producto']); ?>"
                             required
                             placeholder="Ej: Coca Cola 600ml"
                         >
