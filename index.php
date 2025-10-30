@@ -169,6 +169,8 @@ try {
             text-align: center;
             transition: transform 0.2s;
             color: inherit;
+            text-decoration: none;
+            cursor: pointer;
         }
         .stat-card:hover {
             transform: translateY(-5px);
@@ -347,13 +349,14 @@ try {
 
         <!-- Estadísticas -->
         <div class="stats-grid">
-            <div class="stat-card">
+            <!-- CAMBIO AQUÍ: Ahora es clickeable -->
+            <a href="gestionar_productos.php" class="stat-card" title="Gestionar productos">
                 <div class="stat-icon">📦</div>
                 <div class="stat-value"><?php echo $total_productos; ?></div>
                 <div class="stat-label">Total de Productos</div>
-            </div>
+            </a>
             
-            <a href="stock_bajo.php" class="stat-card" style="text-decoration: none; cursor: pointer;" title="Ver productos con stock bajo">
+            <a href="stock_bajo.php" class="stat-card" title="Ver productos con stock bajo">
                 <div class="stat-icon">⚠️</div>
                 <div class="stat-value" style="color: <?php echo $productos_stock_bajo > 0 ? '#ff4444' : '#4CAF50'; ?>;">
                     <?php echo $productos_stock_bajo; ?>
