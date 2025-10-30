@@ -32,7 +32,7 @@ try {
             COALESCE(i.stock_actual, 0) as stock_actual,
             COALESCE(i.stock_minimo, 0) as stock_minimo
         FROM Productos p
-        LEFT JOIN Inventario i ON p.id_producto = i.id_producto
+        LEFT JOIN Inventario i ON p.id_inventario = i.id_inventario
         ORDER BY p.nombre_producto ASC
     ");
     $productos = $stmt->fetchAll(PDO::FETCH_ASSOC);
